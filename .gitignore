@@ -1,0 +1,16 @@
+## .NET / Visual Studio / Rider ignore rules
+bin/
+obj/
+out/
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+TestResults/
+*.trx
+*.coverage
+Thumbs.db
+.DS_Store
