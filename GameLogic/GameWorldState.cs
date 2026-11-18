@@ -6,6 +6,9 @@ namespace Coraline.GameLogic;
 
 public sealed class GameWorldState
 {
+    private const float GuardVisionRange = 6.0f;
+    private static readonly float GuardFovRad = MathHelper.DegreesToRadians(75f);
+
     private readonly LevelMap _map;
     private readonly GameEventBus _eventBus;
     private readonly List<GuardAgent> _guards = [];
@@ -45,15 +48,8 @@ public sealed class GameWorldState
 
     public void Step(float deltaTime, IInputProvider input)
     {
-        if (IsGameWon || IsGameOver)
-        {
-            return;
-        }
-
-        if (input.IsToggleWorldPressed())
-        {
-            ToggleWorld();
-        }
+        if (IsGameWon || IsGameOver) return;
+        if (input.IsToggleWorldPressed()) ToggleWorld();
 
         CurrentStance = input.IsSprintHeld() ? _sprintStance : _sneakStance;
         MovePlayer(deltaTime, input.GetMovementAxes());
@@ -63,36 +59,25 @@ public sealed class GameWorldState
 
     public RenderSnapshot CreateSnapshot()
     {
+        var isReal = ActiveWorld == WorldDimension.RealWorld;
+        var tiles = _map.Tiles
+            .Select(t => new TileRenderState(t.X, t.Y, isReal ? t.RealWorldWalkable : t.OtherWorldWalkable, t.RealWorldWalkable != t.OtherWorldWalkable))
+            .ToList();
+
         var entities = new List<EntityRenderState>
         {
             new(1, EntityType.Player, PlayerPosition, PlayerRotationRad, CurrentStance.Name, ActiveWorld),
-            new(2, EntityType.SmallDoor, new Vector2(_map.SmallDoor.X + 0.5f, _map.SmallDoor.Y + 0.5f), 0f, "Door", WorldDimension.RealWorld)
+            new(2, EntityType.SmallDoor, new Vector2(_map.SmallDoor.X + 0.5f, _map.SmallDoor.Y + 0.5f), 0f, "Door", ActiveWorld)
         };
 
         foreach (var eye in _map.GhostEyes.Where(e => !_collectedEyeIds.Contains(e.Id)))
         {
-            entities.Add(new EntityRenderState(
-                10 + eye.Id,
-                EntityType.GhostEye,
-                new Vector2(eye.X + 0.5f, eye.Y + 0.5f),
-                0f,
-                "Idle",
-                WorldDimension.OtherWorld));
+            entities.Add(new EntityRenderState(10 + eye.Id, EntityType.GhostEye, new Vector2(eye.X + 0.5f, eye.Y + 0.5f), 0f, "Idle", WorldDimension.OtherWorld));
         }
 
-        var debugLines = new List<(Vector2 Start, Vector2 End)>();
         foreach (var guard in _guards)
         {
-            entities.Add(new EntityRenderState(
-                guard.EntityId,
-                EntityType.Guard,
-                guard.Position,
-                guard.RotationRad,
-                guard.State.ToString(),
-                WorldDimension.OtherWorld));
-
-            var lookEnd = guard.Position + new Vector2(MathF.Cos(guard.RotationRad), MathF.Sin(guard.RotationRad)) * 5.0f;
-            debugLines.Add((guard.Position, lookEnd));
+            entities.Add(new EntityRenderState(guard.EntityId, EntityType.Guard, guard.Position, guard.RotationRad, guard.State.ToString(), WorldDimension.OtherWorld));
         }
 
         return new RenderSnapshot
@@ -102,17 +87,43 @@ public sealed class GameWorldState
             CollectedEyes = _collectedEyeIds.Count,
             IsGameWon = IsGameWon,
             IsGameOver = IsGameOver,
+            Tiles = tiles,
             Entities = entities,
-            DebugLines = debugLines
+            DebugLines = BuildGuardDebugLines()
         };
+    }
+
+    private List<(Vector2 Start, Vector2 End)> BuildGuardDebugLines()
+    {
+        var lines = new List<(Vector2 Start, Vector2 End)>();
+        if (ActiveWorld != WorldDimension.OtherWorld) return lines;
+
+        var halfFov = GuardFovRad * 0.5f;
+        foreach (var guard in _guards)
+        {
+            var leftEnd = LineOfSight.CastVisionRay(_map, guard.Position, guard.RotationRad - halfFov, GuardVisionRange, ActiveWorld);
+            var centerEnd = LineOfSight.CastVisionRay(_map, guard.Position, guard.RotationRad, GuardVisionRange, ActiveWorld);
+            var rightEnd = LineOfSight.CastVisionRay(_map, guard.Position, guard.RotationRad + halfFov, GuardVisionRange, ActiveWorld);
+
+            lines.Add((guard.Position, leftEnd));
+            lines.Add((guard.Position, centerEnd));
+            lines.Add((guard.Position, rightEnd));
+            lines.Add((leftEnd, centerEnd));
+            lines.Add((centerEnd, rightEnd));
+
+            var path = AStarPathfinder.FindPath(_map, guard.Position, PlayerPosition, WorldDimension.OtherWorld);
+            for (var i = 0; i < path.Count - 1; i++)
+            {
+                lines.Add((path[i], path[i + 1]));
+            }
+        }
+
+        return lines;
     }
 
     private void MovePlayer(float deltaTime, Vector2 moveAxes)
     {
-        if (moveAxes.LengthSquared <= 0.0001f)
-        {
-            return;
-        }
+        if (moveAxes.LengthSquared <= 0.0001f) return;
 
         var dir = moveAxes.Normalized();
         PlayerRotationRad = MathF.Atan2(dir.Y, dir.X);
@@ -132,7 +143,7 @@ public sealed class GameWorldState
         var spotted = false;
         foreach (var guard in _guards)
         {
-            if (LineOfSight.HasLineOfSight(_map, guard.Position, guard.RotationRad, PlayerPosition, 6.0f, MathHelper.DegreesToRadians(75f), ActiveWorld))
+            if (LineOfSight.HasLineOfSight(_map, guard.Position, guard.RotationRad, PlayerPosition, GuardVisionRange, GuardFovRad, ActiveWorld))
             {
                 spotted = true;
             }

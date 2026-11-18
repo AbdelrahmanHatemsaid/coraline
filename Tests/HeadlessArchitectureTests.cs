@@ -73,4 +73,21 @@ public sealed class HeadlessArchitectureTests
 
         Assert.NotEmpty(path);
     }
+
+    [Fact]
+    public void RenderSnapshot_ContainsTilesEntitiesAndOtherWorldDebugLines()
+    {
+        var mapPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Maps", "level1_other_house.json");
+        var map = MapLoader.LoadFromFile(mapPath);
+        var world = new GameWorldState(map, new GameEventBus());
+
+        var realSnapshot = world.CreateSnapshot();
+        Assert.Equal(384, realSnapshot.Tiles.Count);
+        Assert.Empty(realSnapshot.DebugLines);
+
+        world.ToggleWorld();
+        var otherSnapshot = world.CreateSnapshot();
+        Assert.Equal(WorldDimension.OtherWorld, otherSnapshot.ActiveWorld);
+        Assert.NotEmpty(otherSnapshot.DebugLines);
+    }
 }
