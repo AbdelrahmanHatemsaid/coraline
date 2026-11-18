@@ -23,6 +23,71 @@ public sealed class HeadlessArchitectureTests
     }
 
     [Fact]
+    public void GameEventBus_Unsubscribe_StopsReceivingEvents()
+    {
+        var bus = new GameEventBus();
+        var callCount = 0;
+        Action<WorldShiftedEvent> handler = _ => callCount++;
+
+        bus.Subscribe(handler);
+        bus.Publish(new WorldShiftedEvent(WorldDimension.OtherWorld));
+        Assert.Equal(1, callCount);
+
+        var unsubscribed = bus.Unsubscribe(handler);
+        Assert.True(unsubscribed);
+
+        bus.Publish(new WorldShiftedEvent(WorldDimension.RealWorld));
+        Assert.Equal(1, callCount);
+    }
+
+    [Fact]
+    public void GameEventBus_MultipleSubscribers_AllReceiveEvent()
+    {
+        var bus = new GameEventBus();
+        var receivedFirst = false;
+        var receivedSecond = false;
+
+        bus.Subscribe<GhostEyeCollectedEvent>(_ => receivedFirst = true);
+        bus.Subscribe<GhostEyeCollectedEvent>(_ => receivedSecond = true);
+
+        bus.Publish(new GhostEyeCollectedEvent(1, 1));
+
+        Assert.True(receivedFirst);
+        Assert.True(receivedSecond);
+    }
+
+    [Fact]
+    public void GameEventBus_EventIsolation_DoesNotTriggerUnrelatedSubscribers()
+    {
+        var bus = new GameEventBus();
+        var noiseTriggered = false;
+
+        bus.Subscribe<NoiseEmittedEvent>(_ => noiseTriggered = true);
+        bus.Publish(new WorldShiftedEvent(WorldDimension.OtherWorld));
+
+        Assert.False(noiseTriggered);
+    }
+
+    [Fact]
+    public void GameEventBus_UnsubscribingOneHandler_KeepsOtherHandlersActive()
+    {
+        var bus = new GameEventBus();
+        var handler1Calls = 0;
+        var handler2Calls = 0;
+        Action<NoiseEmittedEvent> h1 = _ => handler1Calls++;
+        Action<NoiseEmittedEvent> h2 = _ => handler2Calls++;
+
+        bus.Subscribe(h1);
+        bus.Subscribe(h2);
+
+        bus.Unsubscribe(h1);
+        bus.Publish(new NoiseEmittedEvent(Vector2.Zero, 1f, "Test"));
+
+        Assert.Equal(0, handler1Calls);
+        Assert.Equal(1, handler2Calls);
+    }
+
+    [Fact]
     public void MapLoader_Loads24x16ThreeRoomGridWithDualWorldFlags()
     {
         var mapPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Maps", "level1_other_house.json");

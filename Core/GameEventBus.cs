@@ -34,4 +34,26 @@ public sealed class GameEventBus
             ((Action<TEvent>)handler).Invoke(gameEvent);
         }
     }
+
+    public bool Unsubscribe<TEvent>(Action<TEvent> handler) where TEvent : struct
+    {
+        if (handler is null)
+        {
+            return false;
+        }
+
+        var eventType = typeof(TEvent);
+        if (!_subscribers.TryGetValue(eventType, out var handlers))
+        {
+            return false;
+        }
+
+        var removed = handlers.Remove(handler);
+        if (handlers.Count == 0)
+        {
+            _subscribers.Remove(eventType);
+        }
+
+        return removed;
+    }
 }
