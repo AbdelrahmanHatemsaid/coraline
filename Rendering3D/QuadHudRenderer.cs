@@ -121,15 +121,15 @@ public sealed class QuadHudRenderer : IDisposable
             DrawSolidQuad(barX, barY, barW * layout.DetectionFillRatio, barH, fillCol);
         }
 
-        var emblemH = 0.18f;
+        var emblemH = 0.22f;
         var emblemW = emblemH * AssetAspect / aspect;
-        var iconTint = Vector4.Lerp(new Vector4(0.85f, 0.85f, 0.90f, 0.95f), new Vector4(1.0f, 0.45f, 0.45f, 1.0f), layout.DetectionFillRatio);
-        DrawTexturedQuad(barX - emblemW - 0.01f, barY - 0.055f, emblemW, emblemH, _detectionIconTex!, iconTint, 0.11f, 0.0f);
+        var iconTint = Vector4.Lerp(new Vector4(0.92f, 0.92f, 0.95f, 1.0f), new Vector4(1.0f, 0.48f, 0.48f, 1.0f), layout.DetectionFillRatio);
+        DrawTexturedQuad(barX - emblemW - 0.01f, barY - 0.075f, emblemW, emblemH, _detectionIconTex!, iconTint, 0.045f, 0.0f);
     }
 
     private void DrawGhostEyeSlots(HudLayoutState layout, float aspect)
     {
-        var slotH = 0.14f;
+        var slotH = 0.15f;
         var slotW = slotH * AssetAspect / aspect;
         var spacing = slotW + 0.02f;
         var startX = 0.95f - spacing * 3.0f;
@@ -138,22 +138,22 @@ public sealed class QuadHudRenderer : IDisposable
         {
             var collected = i < layout.LitGhostEyeSlots;
             var x = startX + i * spacing;
-            var frameCol = collected ? new Vector4(0.18f, 0.88f, 0.62f, 0.50f) : new Vector4(0.12f, 0.12f, 0.16f, 0.72f);
-            DrawSolidQuad(x - 0.008f, 0.79f, slotW + 0.016f, slotH + 0.016f, frameCol);
+            var frameCol = collected ? new Vector4(0.18f, 0.88f, 0.62f, 0.50f) : new Vector4(0.10f, 0.11f, 0.15f, 0.78f);
+            DrawSolidQuad(x - 0.008f, 0.785f, slotW + 0.016f, slotH + 0.016f, frameCol);
 
-            var tint = collected ? Vector4.One : new Vector4(0.42f, 0.45f, 0.50f, 0.45f);
-            DrawTexturedQuad(x, 0.798f, slotW, slotH, _ghostEyeTex!, tint, 0.10f, collected ? 0.0f : 0.85f);
+            var tint = collected ? Vector4.One : new Vector4(0.50f, 0.54f, 0.60f, 0.60f);
+            DrawTexturedQuad(x, 0.793f, slotW, slotH, _ghostEyeTex!, tint, 0.055f, collected ? 0.0f : 0.80f);
         }
     }
 
     private void DrawButtonEyesGameOver(float aspect)
     {
-        DrawSolidQuad(-1.0f, -1.0f, 2.0f, 2.0f, new Vector4(0.03f, 0.01f, 0.02f, 0.82f));
+        DrawSolidQuad(-1.0f, -1.0f, 2.0f, 2.0f, new Vector4(0.03f, 0.01f, 0.02f, 0.85f));
         var eyeH = 0.58f;
         var eyeW = eyeH * AssetAspect / aspect;
-        var crimson = new Vector4(1.0f, 0.42f, 0.42f, 1.0f);
-        DrawTexturedQuad(-eyeW - 0.04f, -eyeH * 0.5f, eyeW, eyeH, _detectionIconTex!, crimson, 0.11f, 0.0f);
-        DrawTexturedQuad(0.04f, -eyeH * 0.5f, eyeW, eyeH, _detectionIconTex!, crimson, 0.11f, 0.0f);
+        var crimson = new Vector4(1.0f, 0.48f, 0.48f, 1.0f);
+        DrawTexturedQuad(-eyeW - 0.04f, -eyeH * 0.5f, eyeW, eyeH, _detectionIconTex!, crimson, 0.045f, 0.0f);
+        DrawTexturedQuad(0.04f, -eyeH * 0.5f, eyeW, eyeH, _detectionIconTex!, crimson, 0.045f, 0.0f);
     }
 
     private void DrawVictoryOverlay(float aspect)

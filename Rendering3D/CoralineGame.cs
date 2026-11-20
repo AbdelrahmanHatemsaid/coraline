@@ -90,7 +90,7 @@ public sealed class CoralineGame : GameWindow
         var projection = _camera.GetProjectionMatrix(aspectRatio);
 
         // Read ONLY from RenderSnapshot -> Scene -> Quad-Only 2D HUD Overlay
-        _debugRenderer.Render(_currentSnapshot, view, projection);
+        _debugRenderer.Render(_currentSnapshot, view, projection, include2DOverlay: false);
         _quadHud.Render(_currentSnapshot, aspectRatio);
 
         Context.SwapBuffers();

@@ -24,7 +24,7 @@ public sealed class DebugRenderer : IDisposable
         (_lineVao, _lineVbo) = CreateDynamicMeshBuffer(2);
     }
 
-    public void Render(RenderSnapshot snapshot, Matrix4 viewMatrix, Matrix4 projectionMatrix)
+    public void Render(RenderSnapshot snapshot, Matrix4 viewMatrix, Matrix4 projectionMatrix, bool include2DOverlay = true)
     {
         if (_shader is null) return;
 
@@ -35,7 +35,7 @@ public sealed class DebugRenderer : IDisposable
         Draw3DTiles(snapshot);
         Draw3DEntities(snapshot);
         Draw3DDebugLines(snapshot);
-        Draw2DOverlay(snapshot);
+        if (include2DOverlay) Draw2DOverlay(snapshot);
 
         GL.BindVertexArray(0);
     }
