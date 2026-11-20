@@ -15,6 +15,7 @@ public sealed class CoralineGame : GameWindow
 
     private readonly OpenTkInputProvider _inputProvider = new();
     private readonly DebugRenderer _debugRenderer = new();
+    private readonly ColorDrainPostProcessor _postProcessor = new();
     private readonly TacticalCamera3D _camera = new();
     private GameEventBus _eventBus = null!;
     private LevelMap _levelMap = null!;
@@ -38,8 +39,9 @@ public sealed class CoralineGame : GameWindow
         GL.Enable(EnableCap.DepthTest);
         GL.ClearColor(0.06f, 0.07f, 0.10f, 1.0f);
 
-        // 2. Initialize DebugRenderer (Ticket #3)
+        // 2. Initialize DebugRenderer (Ticket #3) & ColorDrain FBO Post-Processor (Ticket #11)
         _debugRenderer.Initialize();
+        _postProcessor.Initialize(ClientSize.X, ClientSize.Y);
 
         // 3. Initialize EventBus & Load 24x16 3-Room JSON Map
         _eventBus = new GameEventBus();
@@ -53,6 +55,7 @@ public sealed class CoralineGame : GameWindow
     {
         base.OnResize(e);
         GL.Viewport(0, 0, e.Width, e.Height);
+        _postProcessor.Resize(e.Width, e.Height);
     }
 
     protected override void OnUpdateFrame(FrameEventArgs args)
@@ -81,20 +84,21 @@ public sealed class CoralineGame : GameWindow
     {
         base.OnRenderFrame(args);
 
-        GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-
-        var aspectRatio = Size.Y > 0 ? Size.X / (float)Size.Y : 16f / 9f;
+        var aspectRatio = ClientSize.Y > 0 ? ClientSize.X / (float)ClientSize.Y : 16f / 9f;
         var view = _camera.GetViewMatrix();
         var projection = _camera.GetProjectionMatrix(aspectRatio);
 
-        // Read ONLY from RenderSnapshot -> DebugRenderer
+        // Render scene into offscreen FBO, then apply Color-Drain Tension post-process
+        _postProcessor.BeginScene();
         _debugRenderer.Render(_currentSnapshot, view, projection);
+        _postProcessor.EndSceneAndDraw(_currentSnapshot);
 
         Context.SwapBuffers();
     }
 
     protected override void OnUnload()
     {
+        _postProcessor.Dispose();
         _debugRenderer.Dispose();
         base.OnUnload();
     }
