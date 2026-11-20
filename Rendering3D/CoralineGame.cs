@@ -15,6 +15,7 @@ public sealed class CoralineGame : GameWindow
 
     private readonly OpenTkInputProvider _inputProvider = new();
     private readonly DebugRenderer _debugRenderer = new();
+    private readonly QuadHudRenderer _quadHud = new();
     private readonly TacticalCamera3D _camera = new();
     private GameEventBus _eventBus = null!;
     private LevelMap _levelMap = null!;
@@ -38,8 +39,9 @@ public sealed class CoralineGame : GameWindow
         GL.Enable(EnableCap.DepthTest);
         GL.ClearColor(0.06f, 0.07f, 0.10f, 1.0f);
 
-        // 2. Initialize DebugRenderer (Ticket #3)
+        // 2. Initialize DebugRenderer (Ticket #3) & Quad-Only 2D HUD (Ticket #19)
         _debugRenderer.Initialize();
+        _quadHud.Initialize();
 
         // 3. Initialize EventBus & Load 24x16 3-Room JSON Map
         _eventBus = new GameEventBus();
@@ -87,14 +89,16 @@ public sealed class CoralineGame : GameWindow
         var view = _camera.GetViewMatrix();
         var projection = _camera.GetProjectionMatrix(aspectRatio);
 
-        // Read ONLY from RenderSnapshot -> DebugRenderer
+        // Read ONLY from RenderSnapshot -> Scene -> Quad-Only 2D HUD Overlay
         _debugRenderer.Render(_currentSnapshot, view, projection);
+        _quadHud.Render(_currentSnapshot, aspectRatio);
 
         Context.SwapBuffers();
     }
 
     protected override void OnUnload()
     {
+        _quadHud.Dispose();
         _debugRenderer.Dispose();
         base.OnUnload();
     }
