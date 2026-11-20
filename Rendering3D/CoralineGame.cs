@@ -113,6 +113,7 @@ public sealed class CoralineGame : GameWindow
         else
         {
             _primitiveRenderer.Render(_currentSnapshot, _camera, aspectRatio);
+            _debugRenderer.RenderLinesAndOverlay(_currentSnapshot, view, projection);
         }
 
         Context.SwapBuffers();

@@ -7,9 +7,9 @@ public sealed class TacticalCamera3D
     public const float MinOrthographicSize = 6.0f;
     public const float MaxOrthographicSize = 18.0f;
 
-    public Vector3 Target { get; set; } = new(12f, 0f, 8f);
+    public Vector3 Target { get; set; } = new(10f, 0f, 7f);
     public Vector3 Offset { get; set; } = new(-10f, 16f, 10f);
-    public float OrthographicSize { get; private set; } = 13.5f;
+    public float OrthographicSize { get; private set; } = 10.0f;
     public float FollowSpeed { get; set; } = 6.0f;
 
     public Vector3 Position => Target + Offset;
@@ -23,9 +23,9 @@ public sealed class TacticalCamera3D
     public void FollowTarget(Vector2 worldPos, float deltaTime)
     {
         var desired = new Vector3(
-            Math.Clamp(worldPos.X, 4.0f, 20.0f),
+            Math.Clamp(worldPos.X, 5.0f, 19.0f),
             0.0f,
-            Math.Clamp(worldPos.Y, 3.0f, 13.0f));
+            Math.Clamp(worldPos.Y, 4.0f, 12.0f));
         var t = 1.0f - MathF.Exp(-FollowSpeed * MathF.Max(0.0f, deltaTime));
         Target = Vector3.Lerp(Target, desired, t);
     }
