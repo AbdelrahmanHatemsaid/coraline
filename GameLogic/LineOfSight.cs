@@ -60,4 +60,31 @@ public static class LineOfSight
 
         return true;
     }
+
+    public static Vector2 CastVisionRay(
+        LevelMap map,
+        Vector2 start,
+        float angleRad,
+        float maxDistance,
+        WorldDimension dimension)
+    {
+        var dir = new Vector2(MathF.Cos(angleRad), MathF.Sin(angleRad));
+        var steps = Math.Max(1, (int)MathF.Ceiling(maxDistance * 6.0f));
+        var lastValid = start;
+
+        for (var i = 1; i <= steps; i++)
+        {
+            var sample = start + dir * (maxDistance * (i / (float)steps));
+            var tileX = (int)MathF.Floor(sample.X);
+            var tileY = (int)MathF.Floor(sample.Y);
+            if (!map.IsWalkable(tileX, tileY, dimension))
+            {
+                return lastValid;
+            }
+
+            lastValid = sample;
+        }
+
+        return lastValid;
+    }
 }

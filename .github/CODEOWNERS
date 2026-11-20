@@ -1,0 +1,9 @@
+# Peer Review Matrix (Section 6 of Engineering Plan):
+# - Noor (@nooroo760) reviews Abdelrahman's OpenGL/Rendering & Asset pipeline changes
+# - Abdelrahman (@AbdelrahmanHatemsaid) reviews Noor's Headless GameLogic, AI & xUnit changes
+*               @AbdelrahmanHatemsaid @nooroo760
+/Rendering3D/   @nooroo760
+/Assets/        @nooroo760
+/GameLogic/     @AbdelrahmanHatemsaid
+/Tests/         @AbdelrahmanHatemsaid
+/Core/          @AbdelrahmanHatemsaid @nooroo760

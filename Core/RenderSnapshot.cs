@@ -18,6 +18,13 @@ public enum EntityType
     WebTrap
 }
 
+public readonly record struct TileRenderState(
+    int X,
+    int Y,
+    bool IsWalkable,
+    bool DiffersBetweenWorlds
+);
+
 public readonly record struct EntityRenderState(
     int EntityId,
     EntityType Type,
@@ -34,6 +41,7 @@ public sealed class RenderSnapshot
     public int CollectedEyes { get; init; }
     public bool IsGameWon { get; init; }
     public bool IsGameOver { get; init; }
+    public IReadOnlyList<TileRenderState> Tiles { get; init; } = [];
     public IReadOnlyList<EntityRenderState> Entities { get; init; } = [];
     public IReadOnlyList<(Vector2 Start, Vector2 End)> DebugLines { get; init; } = [];
 }

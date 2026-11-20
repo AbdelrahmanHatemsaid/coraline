@@ -1,8 +1,8 @@
 using System.Runtime.InteropServices;
 using Coraline.Core;
 using Coraline.GameLogic;
-using Coraline.OpenGLCore;
 using OpenTK.Graphics.OpenGL4;
+using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
@@ -15,6 +15,7 @@ public sealed class CoralineGame : GameWindow
 
     private readonly OpenTkInputProvider _inputProvider = new();
     private readonly DebugRenderer _debugRenderer = new();
+    private readonly TacticalCamera3D _camera = new();
     private GameEventBus _eventBus = null!;
     private LevelMap _levelMap = null!;
     private GameWorldState _worldState = null!;
@@ -35,9 +36,9 @@ public sealed class CoralineGame : GameWindow
         GL.DebugMessageCallback(GlDebugDelegate, IntPtr.Zero);
 
         GL.Enable(EnableCap.DepthTest);
-        GL.ClearColor(0.08f, 0.09f, 0.12f, 1.0f);
+        GL.ClearColor(0.06f, 0.07f, 0.10f, 1.0f);
 
-        // 2. Initialize DebugRenderer
+        // 2. Initialize DebugRenderer (Ticket #3)
         _debugRenderer.Initialize();
 
         // 3. Initialize EventBus & Load 24x16 3-Room JSON Map
@@ -46,6 +47,12 @@ public sealed class CoralineGame : GameWindow
         _levelMap = MapLoader.LoadFromFile(mapPath);
         _worldState = new GameWorldState(_levelMap, _eventBus);
         _currentSnapshot = _worldState.CreateSnapshot();
+    }
+
+    protected override void OnResize(ResizeEventArgs e)
+    {
+        base.OnResize(e);
+        GL.Viewport(0, 0, e.Width, e.Height);
     }
 
     protected override void OnUpdateFrame(FrameEventArgs args)
@@ -66,6 +73,8 @@ public sealed class CoralineGame : GameWindow
 
         // 3. Build read-only RenderSnapshot for the frame
         _currentSnapshot = _worldState.CreateSnapshot();
+
+        Title = $"Coraline: The Other World | World: {_currentSnapshot.ActiveWorld} (Tab) | Detection: {_currentSnapshot.DetectionPercent:0}% | Eyes: {_currentSnapshot.CollectedEyes}/3";
     }
 
     protected override void OnRenderFrame(FrameEventArgs args)
@@ -74,8 +83,12 @@ public sealed class CoralineGame : GameWindow
 
         GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
+        var aspectRatio = Size.Y > 0 ? Size.X / (float)Size.Y : 16f / 9f;
+        var view = _camera.GetViewMatrix();
+        var projection = _camera.GetProjectionMatrix(aspectRatio);
+
         // Read ONLY from RenderSnapshot -> DebugRenderer
-        _debugRenderer.Render(_currentSnapshot);
+        _debugRenderer.Render(_currentSnapshot, view, projection);
 
         Context.SwapBuffers();
     }
