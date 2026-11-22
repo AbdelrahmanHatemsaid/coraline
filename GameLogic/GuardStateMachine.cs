@@ -7,6 +7,7 @@ namespace Coraline.AI;
 public enum GuardBehaviorState
 {
     Patrol,
+    Investigating,
     AlertChase
 }
 
@@ -14,6 +15,8 @@ public sealed class GuardAgent
 {
     private readonly List<Vector2> _waypoints;
     private int _waypointIndex;
+    private Vector2? _investigationTarget;
+    private float _investigationWaitTimer;
 
     public int EntityId { get; }
     public Vector2 Position { get; private set; }
@@ -21,8 +24,17 @@ public sealed class GuardAgent
     public GuardBehaviorState State { get; private set; } = GuardBehaviorState.Patrol;
     public int WaypointIndex => _waypointIndex;
     public IReadOnlyList<Vector2> Waypoints => _waypoints;
+    public Vector2? InvestigationTarget => _investigationTarget;
 
     public void Teleport(Vector2 position) => Position = position;
+
+    public void OnNoiseHeard(Vector2 noiseOrigin)
+    {
+        if (State == GuardBehaviorState.AlertChase) return;
+        State = GuardBehaviorState.Investigating;
+        _investigationTarget = noiseOrigin;
+        _investigationWaitTimer = 1.2f;
+    }
 
     public GuardAgent(int entityId, IEnumerable<Vector2> waypoints)
     {
@@ -38,17 +50,50 @@ public sealed class GuardAgent
         Vector2 playerPosition,
         float detectionPercent)
     {
-        State = detectionPercent >= 100.0f
-            ? GuardBehaviorState.AlertChase
-            : GuardBehaviorState.Patrol;
+        if (detectionPercent >= 100.0f)
+        {
+            State = GuardBehaviorState.AlertChase;
+        }
+        else if (State != GuardBehaviorState.Investigating)
+        {
+            State = GuardBehaviorState.Patrol;
+        }
 
         if (State == GuardBehaviorState.AlertChase)
         {
             StepChase(deltaTime, map, playerPosition);
         }
+        else if (State == GuardBehaviorState.Investigating)
+        {
+            StepInvestigating(deltaTime);
+        }
         else
         {
             StepPatrol(deltaTime);
+        }
+    }
+
+    private void StepInvestigating(float deltaTime)
+    {
+        if (_investigationTarget is null)
+        {
+            State = GuardBehaviorState.Patrol;
+            return;
+        }
+
+        var target = _investigationTarget.Value;
+        if ((target - Position).LengthSquared > 0.09f)
+        {
+            MoveTowards(target, 2.4f, deltaTime);
+        }
+        else
+        {
+            _investigationWaitTimer -= deltaTime;
+            if (_investigationWaitTimer <= 0f)
+            {
+                _investigationTarget = null;
+                State = GuardBehaviorState.Patrol;
+            }
         }
     }
 

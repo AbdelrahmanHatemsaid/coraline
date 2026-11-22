@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Coraline.Audio;
 using Coraline.Core;
 using Coraline.GameLogic;
 using OpenTK.Graphics.OpenGL4;
@@ -20,6 +21,8 @@ public sealed class CoralineGame : GameWindow
     private LevelMap _levelMap = null!;
     private GameWorldState _worldState = null!;
     private RenderSnapshot _currentSnapshot = new();
+    private NAudioPlayer _audioPlayer = null!;
+    private AudioTriggerSystem _audioTriggerSystem = null!;
 
     public CoralineGame(GameWindowSettings gws, NativeWindowSettings nws)
         : base(gws, nws)
@@ -43,6 +46,8 @@ public sealed class CoralineGame : GameWindow
 
         // 3. Initialize EventBus & Load 24x16 3-Room JSON Map
         _eventBus = new GameEventBus();
+        _audioPlayer = new NAudioPlayer();
+        _audioTriggerSystem = new AudioTriggerSystem(_eventBus, _audioPlayer);
         var mapPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Maps", "level1_other_house.json");
         _levelMap = MapLoader.LoadFromFile(mapPath);
         _worldState = new GameWorldState(_levelMap, _eventBus);
@@ -69,6 +74,7 @@ public sealed class CoralineGame : GameWindow
         _inputProvider.UpdateState(KeyboardState);
 
         // 2. Step Headless Logic (Stances, Raycast LOS, AI, Dual-World State)
+        _audioTriggerSystem.Update((float)args.Time);
         _worldState.Step((float)args.Time, _inputProvider);
 
         // 3. Build read-only RenderSnapshot for the frame
@@ -95,6 +101,8 @@ public sealed class CoralineGame : GameWindow
 
     protected override void OnUnload()
     {
+        _audioTriggerSystem.Dispose();
+        _audioPlayer.Dispose();
         _debugRenderer.Dispose();
         base.OnUnload();
     }
