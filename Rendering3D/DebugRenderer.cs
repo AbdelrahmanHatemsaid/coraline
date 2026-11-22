@@ -36,7 +36,19 @@ public sealed class DebugRenderer : IDisposable
         Draw3DEntities(snapshot);
         Draw3DDebugLines(snapshot);
         if (include2DOverlay) Draw2DOverlay(snapshot);
+        GL.BindVertexArray(0);
+    }
 
+    public void RenderLinesAndOverlay(RenderSnapshot snapshot, Matrix4 viewMatrix, Matrix4 projectionMatrix, bool include2DOverlay = true)
+    {
+        if (_shader is null) return;
+
+        _shader.Use();
+        _shader.SetMatrix4("uView", viewMatrix);
+        _shader.SetMatrix4("uProjection", projectionMatrix);
+
+        Draw3DDebugLines(snapshot);
+        if (include2DOverlay) Draw2DOverlay(snapshot);
         GL.BindVertexArray(0);
     }
 
