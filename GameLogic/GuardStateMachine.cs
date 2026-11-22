@@ -19,12 +19,17 @@ public sealed class GuardAgent
     public Vector2 Position { get; private set; }
     public float RotationRad { get; private set; }
     public GuardBehaviorState State { get; private set; } = GuardBehaviorState.Patrol;
+    public int WaypointIndex => _waypointIndex;
+    public IReadOnlyList<Vector2> Waypoints => _waypoints;
+
+    public void Teleport(Vector2 position) => Position = position;
 
     public GuardAgent(int entityId, IEnumerable<Vector2> waypoints)
     {
         EntityId = entityId;
         _waypoints = waypoints.ToList();
         Position = _waypoints.Count > 0 ? _waypoints[0] : Vector2.Zero;
+        _waypointIndex = _waypoints.Count > 1 ? 1 : 0;
     }
 
     public void Update(
