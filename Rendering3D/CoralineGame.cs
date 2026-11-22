@@ -3,7 +3,6 @@ using Coraline.Audio;
 using Coraline.Core;
 using Coraline.GameLogic;
 using OpenTK.Graphics.OpenGL4;
-using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
@@ -16,6 +15,9 @@ public sealed class CoralineGame : GameWindow
 
     private readonly OpenTkInputProvider _inputProvider = new();
     private readonly DebugRenderer _debugRenderer = new();
+    private readonly PrimitiveSceneRenderer _primitiveRenderer = new();
+    private readonly ColorDrainPostProcessor _postProcessor = new();
+    private readonly QuadHudRenderer _quadHud = new();
     private readonly TacticalCamera3D _camera = new();
     private GameEventBus _eventBus = null!;
     private LevelMap _levelMap = null!;
@@ -23,6 +25,7 @@ public sealed class CoralineGame : GameWindow
     private RenderSnapshot _currentSnapshot = new();
     private NAudioPlayer _audioPlayer = null!;
     private AudioTriggerSystem _audioTriggerSystem = null!;
+    private bool _useDebugRenderer;
 
     public CoralineGame(GameWindowSettings gws, NativeWindowSettings nws)
         : base(gws, nws)
@@ -41,8 +44,11 @@ public sealed class CoralineGame : GameWindow
         GL.Enable(EnableCap.DepthTest);
         GL.ClearColor(0.06f, 0.07f, 0.10f, 1.0f);
 
-        // 2. Initialize DebugRenderer (Ticket #3)
+        // 2. Initialize DebugRenderer (#3), PrimitiveSceneRenderer (#5), ColorDrain FBO (#11), & Quad HUD (#19)
         _debugRenderer.Initialize();
+        _primitiveRenderer.Initialize();
+        _postProcessor.Initialize(ClientSize.X, ClientSize.Y);
+        _quadHud.Initialize();
 
         // 3. Initialize EventBus & Load 24x16 3-Room JSON Map
         _eventBus = new GameEventBus();
@@ -58,6 +64,13 @@ public sealed class CoralineGame : GameWindow
     {
         base.OnResize(e);
         GL.Viewport(0, 0, e.Width, e.Height);
+        _postProcessor.Resize(e.Width, e.Height);
+    }
+
+    protected override void OnMouseWheel(MouseWheelEventArgs e)
+    {
+        base.OnMouseWheel(e);
+        _camera.Zoom(-e.OffsetY * 0.8f);
     }
 
     protected override void OnUpdateFrame(FrameEventArgs args)
@@ -70,31 +83,50 @@ public sealed class CoralineGame : GameWindow
             return;
         }
 
+        if (KeyboardState.IsKeyPressed(Keys.F1))
+        {
+            _useDebugRenderer = !_useDebugRenderer;
+        }
+
+        var dt = (float)args.Time;
+
         // 1. Poll Input -> IInputProvider
         _inputProvider.UpdateState(KeyboardState);
 
         // 2. Step Headless Logic (Stances, Raycast LOS, AI, Dual-World State)
-        _audioTriggerSystem.Update((float)args.Time);
-        _worldState.Step((float)args.Time, _inputProvider);
+    
+        _worldState.Step(dt, _inputProvider);
 
-        // 3. Build read-only RenderSnapshot for the frame
+        // 3. Build read-only RenderSnapshot for the frame & smoothly follow player
         _currentSnapshot = _worldState.CreateSnapshot();
+        var playerEntity = _currentSnapshot.Entities.FirstOrDefault(e => e.Type == EntityType.Player);
+        _camera.FollowTarget(playerEntity.Position, dt);
 
-        Title = $"Coraline: The Other World | World: {_currentSnapshot.ActiveWorld} (Tab) | Detection: {_currentSnapshot.DetectionPercent:0}% | Eyes: {_currentSnapshot.CollectedEyes}/3";
+        var mode = _useDebugRenderer ? "Debug" : "3D Primitives";
+        Title = $"Coraline | {mode} (F1) | World: {_currentSnapshot.ActiveWorld} (Tab) | Detection: {_currentSnapshot.DetectionPercent:0}% | Eyes: {_currentSnapshot.CollectedEyes}/3";
     }
 
     protected override void OnRenderFrame(FrameEventArgs args)
     {
         base.OnRenderFrame(args);
 
-        GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-
-        var aspectRatio = Size.Y > 0 ? Size.X / (float)Size.Y : 16f / 9f;
+        var aspectRatio = ClientSize.Y > 0 ? ClientSize.X / (float)ClientSize.Y : 16f / 9f;
         var view = _camera.GetViewMatrix();
         var projection = _camera.GetProjectionMatrix(aspectRatio);
 
-        // Read ONLY from RenderSnapshot -> DebugRenderer
-        _debugRenderer.Render(_currentSnapshot, view, projection);
+        // Render scene into offscreen FBO, apply Color-Drain Tension post-process, then draw crisp Quad HUD
+        _postProcessor.BeginScene();
+        if (_useDebugRenderer)
+        {
+            _debugRenderer.Render(_currentSnapshot, view, projection, include2DOverlay: false);
+        }
+        else
+        {
+            _primitiveRenderer.Render(_currentSnapshot, _camera, aspectRatio);
+            _debugRenderer.RenderLinesAndOverlay(_currentSnapshot, view, projection, include2DOverlay: false);
+        }
+        _postProcessor.EndSceneAndDraw(_currentSnapshot);
+        _quadHud.Render(_currentSnapshot, aspectRatio);
 
         Context.SwapBuffers();
     }
@@ -103,6 +135,9 @@ public sealed class CoralineGame : GameWindow
     {
         _audioTriggerSystem.Dispose();
         _audioPlayer.Dispose();
+        _quadHud.Dispose();
+        _postProcessor.Dispose();
+        _primitiveRenderer.Dispose();
         _debugRenderer.Dispose();
         base.OnUnload();
     }
@@ -116,10 +151,7 @@ public sealed class CoralineGame : GameWindow
         IntPtr messagePtr,
         IntPtr userParam)
     {
-        if (severity == DebugSeverity.DebugSeverityNotification)
-        {
-            return;
-        }
+        if (severity == DebugSeverity.DebugSeverityNotification) return;
 
         var message = Marshal.PtrToStringAnsi(messagePtr, length);
         Console.Error.WriteLine($"[OpenGL {severity}] ({source}/{type} #{id}): {message}");
