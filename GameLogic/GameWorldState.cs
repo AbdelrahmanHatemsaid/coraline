@@ -16,6 +16,7 @@ public sealed class GameWorldState
     private readonly HashSet<int> _collectedEyeIds = [];
     private readonly SneakStance _sneakStance = new();
     private readonly SprintStance _sprintStance = new();
+    private float _distractionCooldown;
 
     public Vector2 PlayerPosition { get; private set; }
     public float PlayerRotationRad { get; private set; }
@@ -49,6 +50,9 @@ public sealed class GameWorldState
         if (IsGameWon || IsGameOver) return;
         if (input.IsToggleWorldPressed()) ToggleWorld();
 
+        if (_distractionCooldown > 0f) _distractionCooldown -= deltaTime;
+        if (input.IsDistractionPressed() && _distractionCooldown <= 0f) ThrowDistraction();
+
         CurrentStance = input.IsSprintHeld() ? _sprintStance : _sneakStance;
         MovePlayer(deltaTime, input.GetMovementAxes());
         UpdateDetectionAndGuards(deltaTime);
@@ -58,32 +62,22 @@ public sealed class GameWorldState
     public RenderSnapshot CreateSnapshot()
     {
         var isReal = ActiveWorld == WorldDimension.RealWorld;
-        var tiles = _map.Tiles
-            .Select(t => new TileRenderState(t.X, t.Y, isReal ? t.RealWorldWalkable : t.OtherWorldWalkable, t.RealWorldWalkable != t.OtherWorldWalkable))
-            .ToList();
+        var tiles = _map.Tiles.Select(t => new TileRenderState(t.X, t.Y, isReal ? t.RealWorldWalkable : t.OtherWorldWalkable, t.RealWorldWalkable != t.OtherWorldWalkable)).ToList();
 
         var entities = new List<EntityRenderState>
         {
             new(1, EntityType.Player, PlayerPosition, PlayerRotationRad, CurrentStance.Name, ActiveWorld),
             new(2, EntityType.SmallDoor, new Vector2(_map.SmallDoor.X + 0.5f, _map.SmallDoor.Y + 0.5f), 0f, "Door", ActiveWorld)
         };
-
         foreach (var eye in _map.GhostEyes.Where(e => !_collectedEyeIds.Contains(e.Id)))
             entities.Add(new EntityRenderState(10 + eye.Id, EntityType.GhostEye, new Vector2(eye.X + 0.5f, eye.Y + 0.5f), 0f, "Idle", WorldDimension.OtherWorld));
-
         foreach (var guard in _guards)
             entities.Add(new EntityRenderState(guard.EntityId, EntityType.Guard, guard.Position, guard.RotationRad, guard.State.ToString(), WorldDimension.OtherWorld));
 
         return new RenderSnapshot
         {
-            ActiveWorld = ActiveWorld,
-            DetectionPercent = DetectionPercent,
-            CollectedEyes = _collectedEyeIds.Count,
-            IsGameWon = IsGameWon,
-            IsGameOver = IsGameOver,
-            Tiles = tiles,
-            Entities = entities,
-            DebugLines = BuildGuardDebugLines()
+            ActiveWorld = ActiveWorld, DetectionPercent = DetectionPercent, CollectedEyes = _collectedEyeIds.Count,
+            IsGameWon = IsGameWon, IsGameOver = IsGameOver, Tiles = tiles, Entities = entities, DebugLines = BuildGuardDebugLines()
         };
     }
 
@@ -136,8 +130,25 @@ public sealed class GameWorldState
 
         if (PlayerPosition != startPos && CurrentStance.NoiseRadius > 0.0f)
         {
-            _eventBus.Publish(new NoiseEmittedEvent(PlayerPosition, CurrentStance.NoiseRadius, CurrentStance.Name));
+            var noise = new NoiseEmittedEvent(PlayerPosition, CurrentStance.NoiseRadius, CurrentStance.Name);
+            _eventBus.Publish(noise);
+            NotifyGuardsOfNoise(noise);
         }
+    }
+
+    private void ThrowDistraction()
+    {
+        _distractionCooldown = 1.0f;
+        var landing = LineOfSight.CastVisionRay(_map, PlayerPosition, PlayerRotationRad, 3.5f, ActiveWorld);
+        var noise = new NoiseEmittedEvent(landing, 8.0f, "Distraction");
+        _eventBus.Publish(noise);
+        NotifyGuardsOfNoise(noise);
+    }
+
+    private void NotifyGuardsOfNoise(NoiseEmittedEvent noise)
+    {
+        foreach (var guard in _guards)
+            if ((guard.Position - noise.Origin).Length <= noise.Radius) guard.OnNoiseHeard(noise.Origin);
     }
 
     private bool CanOccupy(Vector2 pos) =>
@@ -161,29 +172,24 @@ public sealed class GameWorldState
             }
         }
 
+        var prev = DetectionPercent;
         var rate = spotted ? 45.0f : -20.0f;
         DetectionPercent = Math.Clamp(DetectionPercent + rate * deltaTime, 0.0f, 100.0f);
+        if (prev < 100.0f && DetectionPercent >= 100.0f) _eventBus.Publish(new NoiseEmittedEvent(PlayerPosition, 0f, "Alert"));
     }
 
     private void CheckCollectiblesAndExtraction(bool interactHeld)
     {
         if (ActiveWorld == WorldDimension.OtherWorld)
         {
-            foreach (var eye in _map.GhostEyes)
+            foreach (var eye in _map.GhostEyes.Where(e => !_collectedEyeIds.Contains(e.Id) && (new Vector2(e.X + 0.5f, e.Y + 0.5f) - PlayerPosition).Length < 0.85f))
             {
-                var eyePos = new Vector2(eye.X + 0.5f, eye.Y + 0.5f);
-                if (!_collectedEyeIds.Contains(eye.Id) && (eyePos - PlayerPosition).Length < 0.85f)
-                {
-                    _collectedEyeIds.Add(eye.Id);
-                    _eventBus.Publish(new GhostEyeCollectedEvent(eye.Id, _collectedEyeIds.Count));
-                }
+                _collectedEyeIds.Add(eye.Id);
+                _eventBus.Publish(new GhostEyeCollectedEvent(eye.Id, _collectedEyeIds.Count));
             }
         }
 
         var doorPos = new Vector2(_map.SmallDoor.X + 0.5f, _map.SmallDoor.Y + 0.5f);
-        if (interactHeld && _collectedEyeIds.Count >= 3 && (doorPos - PlayerPosition).Length < 1.25f)
-        {
-            IsGameWon = true;
-        }
+        if (interactHeld && _collectedEyeIds.Count >= 3 && (doorPos - PlayerPosition).Length < 1.25f) IsGameWon = true;
     }
 }
