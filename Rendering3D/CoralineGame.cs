@@ -16,6 +16,7 @@ public sealed class CoralineGame : GameWindow
     private readonly DebugRenderer _debugRenderer = new();
     private readonly PrimitiveSceneRenderer _primitiveRenderer = new();
     private readonly ColorDrainPostProcessor _postProcessor = new();
+    private readonly QuadHudRenderer _quadHud = new();
     private readonly TacticalCamera3D _camera = new();
     private GameEventBus _eventBus = null!;
     private LevelMap _levelMap = null!;
@@ -40,10 +41,11 @@ public sealed class CoralineGame : GameWindow
         GL.Enable(EnableCap.DepthTest);
         GL.ClearColor(0.06f, 0.07f, 0.10f, 1.0f);
 
-        // 2. Initialize DebugRenderer (Ticket #3), PrimitiveSceneRenderer (Ticket #5), & ColorDrain FBO (Ticket #11)
+        // 2. Initialize DebugRenderer (#3), PrimitiveSceneRenderer (#5), ColorDrain FBO (#11), & Quad HUD (#19)
         _debugRenderer.Initialize();
         _primitiveRenderer.Initialize();
         _postProcessor.Initialize(ClientSize.X, ClientSize.Y);
+        _quadHud.Initialize();
 
         // 3. Initialize EventBus & Load 24x16 3-Room JSON Map
         _eventBus = new GameEventBus();
@@ -106,24 +108,26 @@ public sealed class CoralineGame : GameWindow
         var view = _camera.GetViewMatrix();
         var projection = _camera.GetProjectionMatrix(aspectRatio);
 
-        // Render scene into offscreen FBO, then apply Color-Drain Tension post-process
+        // Render scene into offscreen FBO, apply Color-Drain Tension post-process, then draw crisp Quad HUD
         _postProcessor.BeginScene();
         if (_useDebugRenderer)
         {
-            _debugRenderer.Render(_currentSnapshot, view, projection);
+            _debugRenderer.Render(_currentSnapshot, view, projection, include2DOverlay: false);
         }
         else
         {
             _primitiveRenderer.Render(_currentSnapshot, _camera, aspectRatio);
-            _debugRenderer.RenderLinesAndOverlay(_currentSnapshot, view, projection);
+            _debugRenderer.RenderLinesAndOverlay(_currentSnapshot, view, projection, include2DOverlay: false);
         }
         _postProcessor.EndSceneAndDraw(_currentSnapshot);
+        _quadHud.Render(_currentSnapshot, aspectRatio);
 
         Context.SwapBuffers();
     }
 
     protected override void OnUnload()
     {
+        _quadHud.Dispose();
         _postProcessor.Dispose();
         _primitiveRenderer.Dispose();
         _debugRenderer.Dispose();
