@@ -7,6 +7,7 @@ namespace Coraline.GameLogic;
 public sealed class GameWorldState
 {
     private const float GuardVisionRange = 6.0f;
+    private const float GuardProximityRange = 1.25f;
     private static readonly float GuardFovRad = MathHelper.DegreesToRadians(75f);
 
     private readonly LevelMap _map;
@@ -23,6 +24,9 @@ public sealed class GameWorldState
     public float DetectionPercent { get; private set; }
     public bool IsGameWon { get; private set; }
     public bool IsGameOver { get; private set; }
+    public IReadOnlyList<GuardAgent> Guards => _guards;
+
+    public void SetDetectionPercent(float percent) => DetectionPercent = Math.Clamp(percent, 0f, 100f);
 
     public GameWorldState(LevelMap map, GameEventBus eventBus)
     {
@@ -30,12 +34,8 @@ public sealed class GameWorldState
         _eventBus = eventBus;
         CurrentStance = _sneakStance;
         PlayerPosition = new Vector2(map.PlayerSpawn.X + 0.5f, map.PlayerSpawn.Y + 0.5f);
-
         foreach (var g in map.Guards)
-        {
-            var points = g.Waypoints.Select(w => new Vector2(w.X + 0.5f, w.Y + 0.5f));
-            _guards.Add(new GuardAgent(g.Id, points));
-        }
+            _guards.Add(new GuardAgent(g.Id, g.Waypoints.Select(w => new Vector2(w.X + 0.5f, w.Y + 0.5f))));
     }
 
     public void ToggleWorld()
@@ -69,14 +69,10 @@ public sealed class GameWorldState
         };
 
         foreach (var eye in _map.GhostEyes.Where(e => !_collectedEyeIds.Contains(e.Id)))
-        {
             entities.Add(new EntityRenderState(10 + eye.Id, EntityType.GhostEye, new Vector2(eye.X + 0.5f, eye.Y + 0.5f), 0f, "Idle", WorldDimension.OtherWorld));
-        }
 
         foreach (var guard in _guards)
-        {
             entities.Add(new EntityRenderState(guard.EntityId, EntityType.Guard, guard.Position, guard.RotationRad, guard.State.ToString(), WorldDimension.OtherWorld));
-        }
 
         return new RenderSnapshot
         {
@@ -106,10 +102,7 @@ public sealed class GameWorldState
             lines.AddRange([(guard.Position, leftEnd), (guard.Position, centerEnd), (guard.Position, rightEnd), (leftEnd, centerEnd), (centerEnd, rightEnd)]);
 
             var path = AStarPathfinder.FindPath(_map, guard.Position, PlayerPosition, WorldDimension.OtherWorld);
-            for (var i = 0; i < path.Count - 1; i++)
-            {
-                lines.Add((path[i], path[i + 1]));
-            }
+            for (var i = 0; i < path.Count - 1; i++) lines.Add((path[i], path[i + 1]));
         }
 
         return lines;
@@ -155,10 +148,11 @@ public sealed class GameWorldState
         var spotted = false;
         foreach (var guard in _guards)
         {
-            if (LineOfSight.HasLineOfSight(_map, guard.Position, guard.RotationRad, PlayerPosition, GuardVisionRange, GuardFovRad, ActiveWorld))
-            {
-                spotted = true;
-            }
+            var inProximity = (guard.Position - PlayerPosition).Length <= GuardProximityRange;
+            var inLos = ActiveWorld == WorldDimension.OtherWorld &&
+                        LineOfSight.HasLineOfSight(_map, guard.Position, guard.RotationRad, PlayerPosition, GuardVisionRange, GuardFovRad, WorldDimension.OtherWorld);
+
+            if (inProximity || inLos) spotted = true;
 
             guard.Update(deltaTime, _map, PlayerPosition, DetectionPercent);
             if (guard.State == GuardBehaviorState.AlertChase && (guard.Position - PlayerPosition).Length < 0.65f)
