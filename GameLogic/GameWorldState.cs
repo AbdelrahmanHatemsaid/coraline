@@ -40,9 +40,7 @@ public sealed class GameWorldState
 
     public void ToggleWorld()
     {
-        ActiveWorld = ActiveWorld == WorldDimension.RealWorld
-            ? WorldDimension.OtherWorld
-            : WorldDimension.RealWorld;
+        ActiveWorld = ActiveWorld == WorldDimension.RealWorld ? WorldDimension.OtherWorld : WorldDimension.RealWorld;
         _eventBus.Publish(new WorldShiftedEvent(ActiveWorld));
     }
 
@@ -105,11 +103,7 @@ public sealed class GameWorldState
             var centerEnd = LineOfSight.CastVisionRay(_map, guard.Position, guard.RotationRad, GuardVisionRange, ActiveWorld);
             var rightEnd = LineOfSight.CastVisionRay(_map, guard.Position, guard.RotationRad + halfFov, GuardVisionRange, ActiveWorld);
 
-            lines.Add((guard.Position, leftEnd));
-            lines.Add((guard.Position, centerEnd));
-            lines.Add((guard.Position, rightEnd));
-            lines.Add((leftEnd, centerEnd));
-            lines.Add((centerEnd, rightEnd));
+            lines.AddRange([(guard.Position, leftEnd), (guard.Position, centerEnd), (guard.Position, rightEnd), (leftEnd, centerEnd), (centerEnd, rightEnd)]);
 
             var path = AStarPathfinder.FindPath(_map, guard.Position, PlayerPosition, WorldDimension.OtherWorld);
             for (var i = 0; i < path.Count - 1; i++)
@@ -121,22 +115,40 @@ public sealed class GameWorldState
         return lines;
     }
 
+    public void TeleportPlayer(Vector2 position) => PlayerPosition = position;
+
     private void MovePlayer(float deltaTime, Vector2 moveAxes)
     {
         if (moveAxes.LengthSquared <= 0.0001f) return;
 
         var dir = moveAxes.Normalized();
         PlayerRotationRad = MathF.Atan2(dir.Y, dir.X);
-        var candidate = PlayerPosition + dir * CurrentStance.MoveSpeed * deltaTime;
-        if (_map.IsWalkable((int)MathF.Floor(candidate.X), (int)MathF.Floor(candidate.Y), ActiveWorld))
+        var step = dir * CurrentStance.MoveSpeed * deltaTime;
+        var startPos = PlayerPosition;
+
+        var candidate = startPos + step;
+        if (CanOccupy(candidate))
         {
             PlayerPosition = candidate;
-            if (CurrentStance.NoiseRadius > 0.0f)
-            {
-                _eventBus.Publish(new NoiseEmittedEvent(PlayerPosition, CurrentStance.NoiseRadius, CurrentStance.Name));
-            }
+        }
+        else
+        {
+            var canX = step.X != 0f && CanOccupy(new Vector2(startPos.X + step.X, startPos.Y));
+            var canY = step.Y != 0f && CanOccupy(new Vector2(startPos.X, startPos.Y + step.Y));
+            var preferX = MathF.Abs(step.X) >= MathF.Abs(step.Y);
+
+            if (preferX) PlayerPosition = canX ? new Vector2(startPos.X + step.X, startPos.Y) : (canY ? new Vector2(startPos.X, startPos.Y + step.Y) : startPos);
+            else PlayerPosition = canY ? new Vector2(startPos.X, startPos.Y + step.Y) : (canX ? new Vector2(startPos.X + step.X, startPos.Y) : startPos);
+        }
+
+        if (PlayerPosition != startPos && CurrentStance.NoiseRadius > 0.0f)
+        {
+            _eventBus.Publish(new NoiseEmittedEvent(PlayerPosition, CurrentStance.NoiseRadius, CurrentStance.Name));
         }
     }
+
+    private bool CanOccupy(Vector2 pos) =>
+        _map.IsWalkable((int)MathF.Floor(pos.X), (int)MathF.Floor(pos.Y), ActiveWorld);
 
     private void UpdateDetectionAndGuards(float deltaTime)
     {

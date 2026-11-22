@@ -14,6 +14,11 @@ public static class LineOfSight
         float fovRadians,
         WorldDimension dimension)
     {
+        if (maxDistance <= 0f || fovRadians <= 0f)
+        {
+            return false;
+        }
+
         var toTarget = targetPos - observerPos;
         var distance = toTarget.Length;
         if (distance > maxDistance)
