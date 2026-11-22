@@ -2,7 +2,6 @@ using System.Runtime.InteropServices;
 using Coraline.Core;
 using Coraline.GameLogic;
 using OpenTK.Graphics.OpenGL4;
-using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
@@ -15,12 +14,14 @@ public sealed class CoralineGame : GameWindow
 
     private readonly OpenTkInputProvider _inputProvider = new();
     private readonly DebugRenderer _debugRenderer = new();
+    private readonly PrimitiveSceneRenderer _primitiveRenderer = new();
     private readonly ColorDrainPostProcessor _postProcessor = new();
     private readonly TacticalCamera3D _camera = new();
     private GameEventBus _eventBus = null!;
     private LevelMap _levelMap = null!;
     private GameWorldState _worldState = null!;
     private RenderSnapshot _currentSnapshot = new();
+    private bool _useDebugRenderer;
 
     public CoralineGame(GameWindowSettings gws, NativeWindowSettings nws)
         : base(gws, nws)
@@ -39,8 +40,9 @@ public sealed class CoralineGame : GameWindow
         GL.Enable(EnableCap.DepthTest);
         GL.ClearColor(0.06f, 0.07f, 0.10f, 1.0f);
 
-        // 2. Initialize DebugRenderer (Ticket #3) & ColorDrain FBO Post-Processor (Ticket #11)
+        // 2. Initialize DebugRenderer (Ticket #3), PrimitiveSceneRenderer (Ticket #5), & ColorDrain FBO (Ticket #11)
         _debugRenderer.Initialize();
+        _primitiveRenderer.Initialize();
         _postProcessor.Initialize(ClientSize.X, ClientSize.Y);
 
         // 3. Initialize EventBus & Load 24x16 3-Room JSON Map
@@ -58,6 +60,12 @@ public sealed class CoralineGame : GameWindow
         _postProcessor.Resize(e.Width, e.Height);
     }
 
+    protected override void OnMouseWheel(MouseWheelEventArgs e)
+    {
+        base.OnMouseWheel(e);
+        _camera.Zoom(-e.OffsetY * 0.8f);
+    }
+
     protected override void OnUpdateFrame(FrameEventArgs args)
     {
         base.OnUpdateFrame(args);
@@ -68,16 +76,26 @@ public sealed class CoralineGame : GameWindow
             return;
         }
 
+        if (KeyboardState.IsKeyPressed(Keys.F1))
+        {
+            _useDebugRenderer = !_useDebugRenderer;
+        }
+
+        var dt = (float)args.Time;
+
         // 1. Poll Input -> IInputProvider
         _inputProvider.UpdateState(KeyboardState);
 
         // 2. Step Headless Logic (Stances, Raycast LOS, AI, Dual-World State)
-        _worldState.Step((float)args.Time, _inputProvider);
+        _worldState.Step(dt, _inputProvider);
 
-        // 3. Build read-only RenderSnapshot for the frame
+        // 3. Build read-only RenderSnapshot for the frame & smoothly follow player
         _currentSnapshot = _worldState.CreateSnapshot();
+        var playerEntity = _currentSnapshot.Entities.FirstOrDefault(e => e.Type == EntityType.Player);
+        _camera.FollowTarget(playerEntity.Position, dt);
 
-        Title = $"Coraline: The Other World | World: {_currentSnapshot.ActiveWorld} (Tab) | Detection: {_currentSnapshot.DetectionPercent:0}% | Eyes: {_currentSnapshot.CollectedEyes}/3";
+        var mode = _useDebugRenderer ? "Debug" : "3D Primitives";
+        Title = $"Coraline | {mode} (F1) | World: {_currentSnapshot.ActiveWorld} (Tab) | Detection: {_currentSnapshot.DetectionPercent:0}% | Eyes: {_currentSnapshot.CollectedEyes}/3";
     }
 
     protected override void OnRenderFrame(FrameEventArgs args)
@@ -90,7 +108,15 @@ public sealed class CoralineGame : GameWindow
 
         // Render scene into offscreen FBO, then apply Color-Drain Tension post-process
         _postProcessor.BeginScene();
-        _debugRenderer.Render(_currentSnapshot, view, projection);
+        if (_useDebugRenderer)
+        {
+            _debugRenderer.Render(_currentSnapshot, view, projection);
+        }
+        else
+        {
+            _primitiveRenderer.Render(_currentSnapshot, _camera, aspectRatio);
+            _debugRenderer.RenderLinesAndOverlay(_currentSnapshot, view, projection);
+        }
         _postProcessor.EndSceneAndDraw(_currentSnapshot);
 
         Context.SwapBuffers();
@@ -99,6 +125,7 @@ public sealed class CoralineGame : GameWindow
     protected override void OnUnload()
     {
         _postProcessor.Dispose();
+        _primitiveRenderer.Dispose();
         _debugRenderer.Dispose();
         base.OnUnload();
     }
@@ -112,10 +139,7 @@ public sealed class CoralineGame : GameWindow
         IntPtr messagePtr,
         IntPtr userParam)
     {
-        if (severity == DebugSeverity.DebugSeverityNotification)
-        {
-            return;
-        }
+        if (severity == DebugSeverity.DebugSeverityNotification) return;
 
         var message = Marshal.PtrToStringAnsi(messagePtr, length);
         Console.Error.WriteLine($"[OpenGL {severity}] ({source}/{type} #{id}): {message}");
