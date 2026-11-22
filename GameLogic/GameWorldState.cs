@@ -17,12 +17,15 @@ public sealed class GameWorldState
     private readonly SneakStance _sneakStance = new();
     private readonly SprintStance _sprintStance = new();
     private float _distractionCooldown;
+    private float _seeingStoneCharge = 100f;
+    private const float SeeingStoneMaxCharge = 100f; private const float SeeingStoneRechargeRate = 33.34f; // fills in ~3 s
 
     public Vector2 PlayerPosition { get; private set; }
     public float PlayerRotationRad { get; private set; }
     public IPlayerStance CurrentStance { get; private set; }
     public WorldDimension ActiveWorld { get; private set; } = WorldDimension.RealWorld;
     public float DetectionPercent { get; private set; }
+    public float SeeingStoneChargePercent => _seeingStoneCharge;
     public bool IsGameWon { get; private set; }
     public bool IsGameOver { get; private set; }
     public IReadOnlyList<GuardAgent> Guards => _guards;
@@ -48,7 +51,8 @@ public sealed class GameWorldState
     public void Step(float deltaTime, IInputProvider input)
     {
         if (IsGameWon || IsGameOver) return;
-        if (input.IsToggleWorldPressed()) ToggleWorld();
+        if (input.IsToggleWorldPressed() && _seeingStoneCharge >= SeeingStoneMaxCharge) { ToggleWorld(); _seeingStoneCharge = 0f; }
+        if (_seeingStoneCharge < SeeingStoneMaxCharge) _seeingStoneCharge = Math.Min(SeeingStoneMaxCharge, _seeingStoneCharge + SeeingStoneRechargeRate * deltaTime);
 
         if (_distractionCooldown > 0f) _distractionCooldown -= deltaTime;
         if (input.IsDistractionPressed() && _distractionCooldown <= 0f) ThrowDistraction();
@@ -76,8 +80,9 @@ public sealed class GameWorldState
 
         return new RenderSnapshot
         {
-            ActiveWorld = ActiveWorld, DetectionPercent = DetectionPercent, CollectedEyes = _collectedEyeIds.Count,
-            IsGameWon = IsGameWon, IsGameOver = IsGameOver, Tiles = tiles, Entities = entities, DebugLines = BuildGuardDebugLines()
+            ActiveWorld = ActiveWorld, DetectionPercent = DetectionPercent, SeeingStoneChargePercent = _seeingStoneCharge,
+            CollectedEyes = _collectedEyeIds.Count, IsGameWon = IsGameWon, IsGameOver = IsGameOver,
+            Tiles = tiles, Entities = entities, DebugLines = BuildGuardDebugLines()
         };
     }
 
