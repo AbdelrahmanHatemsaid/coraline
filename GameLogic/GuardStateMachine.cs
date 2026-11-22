@@ -17,6 +17,9 @@ public sealed class GuardAgent
     private int _waypointIndex;
     private Vector2? _investigationTarget;
     private float _investigationWaitTimer;
+    private Vector2? _lastKnownPlayerPos;
+    private float _repathCooldown;
+    private List<Vector2> _currentPath = [];
 
     public int EntityId { get; }
     public Vector2 Position { get; private set; }
@@ -25,6 +28,8 @@ public sealed class GuardAgent
     public int WaypointIndex => _waypointIndex;
     public IReadOnlyList<Vector2> Waypoints => _waypoints;
     public Vector2? InvestigationTarget => _investigationTarget;
+    public Vector2? LastKnownPlayerPos => _lastKnownPlayerPos;
+    public IReadOnlyList<Vector2> CurrentPath => _currentPath;
 
     public void Teleport(Vector2 position) => Position = position;
 
@@ -50,9 +55,18 @@ public sealed class GuardAgent
         Vector2 playerPosition,
         float detectionPercent)
     {
+        var wasChasing = State == GuardBehaviorState.AlertChase;
         if (detectionPercent >= 100.0f)
         {
             State = GuardBehaviorState.AlertChase;
+            _lastKnownPlayerPos = playerPosition;
+        }
+        else if (wasChasing)
+        {
+            State = GuardBehaviorState.Investigating;
+            _investigationTarget = _lastKnownPlayerPos ?? playerPosition;
+            _investigationWaitTimer = 1.5f;
+            _currentPath.Clear();
         }
         else if (State != GuardBehaviorState.Investigating)
         {
@@ -114,8 +128,14 @@ public sealed class GuardAgent
 
     private void StepChase(float deltaTime, LevelMap map, Vector2 playerPosition)
     {
-        var path = AStarPathfinder.FindPath(map, Position, playerPosition, WorldDimension.OtherWorld);
-        var nextTarget = path.Count > 1 ? path[1] : playerPosition;
+        _repathCooldown -= deltaTime;
+        if (_repathCooldown <= 0f || _currentPath.Count == 0)
+        {
+            _repathCooldown = 0.2f;
+            _currentPath = AStarPathfinder.FindPath(map, Position, playerPosition, WorldDimension.OtherWorld);
+        }
+
+        var nextTarget = _currentPath.Count > 1 ? _currentPath[1] : playerPosition;
         MoveTowards(nextTarget, 3.6f, deltaTime);
     }
 

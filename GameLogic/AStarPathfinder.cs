@@ -21,8 +21,19 @@ public static class AStarPathfinder
 
         if (!map.IsWalkable(goal.Item1, goal.Item2, dimension))
         {
-            return [];
+            var fallback = FindNearestWalkable(map, goal, start, dimension);
+            if (fallback is null) return [];
+            goal = fallback.Value;
         }
+
+        if (!map.IsWalkable(start.Item1, start.Item2, dimension))
+        {
+            var fallbackStart = FindNearestWalkable(map, start, goal, dimension);
+            if (fallbackStart is null) return [];
+            start = fallbackStart.Value;
+        }
+
+        if (start == goal) return [new Vector2(start.Item1 + 0.5f, start.Item2 + 0.5f)];
 
         var openSet = new PriorityQueue<(int X, int Y), int>();
         var cameFrom = new Dictionary<(int X, int Y), (int X, int Y)>();
@@ -57,6 +68,20 @@ public static class AStarPathfinder
         }
 
         return [];
+    }
+
+    private static (int X, int Y)? FindNearestWalkable(
+        GameLogic.LevelMap map,
+        (int X, int Y) target,
+        (int X, int Y) reference,
+        WorldDimension dimension)
+    {
+        return Neighbors
+            .Select(n => (X: target.X + n.Dx, Y: target.Y + n.Dy))
+            .Where(n => map.IsWalkable(n.X, n.Y, dimension))
+            .OrderBy(n => Heuristic(n, reference))
+            .Cast<(int X, int Y)?>()
+            .FirstOrDefault();
     }
 
     private static int Heuristic((int X, int Y) a, (int X, int Y) b) =>
