@@ -94,7 +94,7 @@ public sealed class CoralineGame : GameWindow
         _inputProvider.UpdateState(KeyboardState);
 
         // 2. Step Headless Logic (Stances, Raycast LOS, AI, Dual-World State)
-    
+        _audioTriggerSystem.Update(dt);
         _worldState.Step(dt, _inputProvider);
 
         // 3. Build read-only RenderSnapshot for the frame & smoothly follow player
