@@ -67,24 +67,24 @@ public static class PrimitiveMeshBuilder
             var n0 = new Vector3(c0, 0f, s0);
             var n1 = new Vector3(c1, 0f, s1);
 
-            // Side wall (2 triangles)
+            // Side wall (2 outward CCW triangles)
             AddVertex(verts, b0, n0, u0, 0f);
+            AddVertex(verts, t1, n1, u1, 1f);
             AddVertex(verts, b1, n1, u1, 0f);
-            AddVertex(verts, t1, n1, u1, 1f);
 
             AddVertex(verts, b0, n0, u0, 0f);
-            AddVertex(verts, t1, n1, u1, 1f);
             AddVertex(verts, t0, n0, u0, 1f);
+            AddVertex(verts, t1, n1, u1, 1f);
 
-            // Top cap triangle
+            // Top cap triangle (outward +Y CCW)
             AddVertex(verts, new Vector3(0f, halfH, 0f), Vector3.UnitY, 0.5f, 0.5f);
-            AddVertex(verts, t0, Vector3.UnitY, 0.5f + c0 * 0.5f, 0.5f + s0 * 0.5f);
             AddVertex(verts, t1, Vector3.UnitY, 0.5f + c1 * 0.5f, 0.5f + s1 * 0.5f);
+            AddVertex(verts, t0, Vector3.UnitY, 0.5f + c0 * 0.5f, 0.5f + s0 * 0.5f);
 
-            // Bottom cap triangle
+            // Bottom cap triangle (outward -Y CCW)
             AddVertex(verts, new Vector3(0f, -halfH, 0f), -Vector3.UnitY, 0.5f, 0.5f);
-            AddVertex(verts, b1, -Vector3.UnitY, 0.5f + c1 * 0.5f, 0.5f + s1 * 0.5f);
             AddVertex(verts, b0, -Vector3.UnitY, 0.5f + c0 * 0.5f, 0.5f + s0 * 0.5f);
+            AddVertex(verts, b1, -Vector3.UnitY, 0.5f + c1 * 0.5f, 0.5f + s1 * 0.5f);
         }
 
         return Build(verts);
