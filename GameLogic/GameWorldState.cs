@@ -8,6 +8,7 @@ public sealed class GameWorldState
 {
     private const float GuardVisionRange = 6.0f;
     private const float GuardProximityRange = 1.25f;
+    private const float ExtractionHoldSeconds = 1.0f;
     private static readonly float GuardFovRad = MathHelper.DegreesToRadians(75f);
 
     private readonly LevelMap _map;
@@ -17,6 +18,7 @@ public sealed class GameWorldState
     private readonly SneakStance _sneakStance = new();
     private readonly SprintStance _sprintStance = new();
     private float _distractionCooldown;
+    private float _extractionProgress;
 
     public Vector2 PlayerPosition { get; private set; }
     public float PlayerRotationRad { get; private set; }
@@ -56,7 +58,7 @@ public sealed class GameWorldState
         CurrentStance = input.IsSprintHeld() ? _sprintStance : _sneakStance;
         MovePlayer(deltaTime, input.GetMovementAxes());
         UpdateDetectionAndGuards(deltaTime);
-        CheckCollectiblesAndExtraction(input.IsInteractHeld());
+        if (!IsGameOver) CheckCollectiblesAndExtraction(deltaTime, input.IsInteractHeld());
     }
 
     public RenderSnapshot CreateSnapshot()
@@ -178,7 +180,7 @@ public sealed class GameWorldState
         if (prev < 100.0f && DetectionPercent >= 100.0f) _eventBus.Publish(new NoiseEmittedEvent(PlayerPosition, 0f, "Alert"));
     }
 
-    private void CheckCollectiblesAndExtraction(bool interactHeld)
+    private void CheckCollectiblesAndExtraction(float deltaTime, bool interactHeld)
     {
         if (ActiveWorld == WorldDimension.OtherWorld)
         {
@@ -190,6 +192,8 @@ public sealed class GameWorldState
         }
 
         var doorPos = new Vector2(_map.SmallDoor.X + 0.5f, _map.SmallDoor.Y + 0.5f);
-        if (interactHeld && _collectedEyeIds.Count >= 3 && (doorPos - PlayerPosition).Length < 1.25f) IsGameWon = true;
+        var canExtract = interactHeld && _collectedEyeIds.Count >= 3 && (doorPos - PlayerPosition).Length < 1.25f;
+        _extractionProgress = canExtract ? _extractionProgress + deltaTime : 0f;
+        IsGameWon = _extractionProgress >= ExtractionHoldSeconds;
     }
 }
