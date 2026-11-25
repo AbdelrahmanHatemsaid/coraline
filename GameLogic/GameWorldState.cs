@@ -19,12 +19,15 @@ public sealed class GameWorldState
     private readonly SprintStance _sprintStance = new();
     private float _distractionCooldown;
     private float _extractionProgress;
+    private float _seeingStoneCharge = 100f;
+    private const float SeeingStoneMaxCharge = 100f; private const float SeeingStoneRechargeRate = 33.34f; // fills in ~3 s
 
     public Vector2 PlayerPosition { get; private set; }
     public float PlayerRotationRad { get; private set; }
     public IPlayerStance CurrentStance { get; private set; }
     public WorldDimension ActiveWorld { get; private set; } = WorldDimension.RealWorld;
     public float DetectionPercent { get; private set; }
+    public float SeeingStoneChargePercent => _seeingStoneCharge;
     public bool IsGameWon { get; private set; }
     public bool IsGameOver { get; private set; }
     public IReadOnlyList<GuardAgent> Guards => _guards;
@@ -37,8 +40,7 @@ public sealed class GameWorldState
         _eventBus = eventBus;
         CurrentStance = _sneakStance;
         PlayerPosition = new Vector2(map.PlayerSpawn.X + 0.5f, map.PlayerSpawn.Y + 0.5f);
-        foreach (var g in map.Guards)
-            _guards.Add(new GuardAgent(g.Id, g.Waypoints.Select(w => new Vector2(w.X + 0.5f, w.Y + 0.5f))));
+        foreach (var g in map.Guards) _guards.Add(new GuardAgent(g.Id, g.Waypoints.Select(w => new Vector2(w.X + 0.5f, w.Y + 0.5f))));
     }
 
     public void ToggleWorld()
@@ -50,7 +52,8 @@ public sealed class GameWorldState
     public void Step(float deltaTime, IInputProvider input)
     {
         if (IsGameWon || IsGameOver) return;
-        if (input.IsToggleWorldPressed()) ToggleWorld();
+        if (input.IsToggleWorldPressed() && _seeingStoneCharge >= SeeingStoneMaxCharge) { ToggleWorld(); _seeingStoneCharge = 0f; }
+        if (_seeingStoneCharge < SeeingStoneMaxCharge) _seeingStoneCharge = Math.Min(SeeingStoneMaxCharge, _seeingStoneCharge + SeeingStoneRechargeRate * deltaTime);
 
         if (_distractionCooldown > 0f) _distractionCooldown -= deltaTime;
         if (input.IsDistractionPressed() && _distractionCooldown <= 0f) ThrowDistraction();
@@ -71,15 +74,14 @@ public sealed class GameWorldState
             new(1, EntityType.Player, PlayerPosition, PlayerRotationRad, CurrentStance.Name, ActiveWorld),
             new(2, EntityType.SmallDoor, new Vector2(_map.SmallDoor.X + 0.5f, _map.SmallDoor.Y + 0.5f), 0f, "Door", ActiveWorld)
         };
-        foreach (var eye in _map.GhostEyes.Where(e => !_collectedEyeIds.Contains(e.Id)))
-            entities.Add(new EntityRenderState(10 + eye.Id, EntityType.GhostEye, new Vector2(eye.X + 0.5f, eye.Y + 0.5f), 0f, "Idle", WorldDimension.OtherWorld));
-        foreach (var guard in _guards)
-            entities.Add(new EntityRenderState(guard.EntityId, EntityType.Guard, guard.Position, guard.RotationRad, guard.State.ToString(), WorldDimension.OtherWorld));
+        entities.AddRange(_map.GhostEyes.Where(e => !_collectedEyeIds.Contains(e.Id)).Select(eye => new EntityRenderState(10 + eye.Id, EntityType.GhostEye, new Vector2(eye.X + 0.5f, eye.Y + 0.5f), 0f, "Idle", WorldDimension.OtherWorld)));
+        entities.AddRange(_guards.Select(guard => new EntityRenderState(guard.EntityId, EntityType.Guard, guard.Position, guard.RotationRad, guard.State.ToString(), WorldDimension.OtherWorld)));
 
         return new RenderSnapshot
         {
-            ActiveWorld = ActiveWorld, DetectionPercent = DetectionPercent, CollectedEyes = _collectedEyeIds.Count,
-            IsGameWon = IsGameWon, IsGameOver = IsGameOver, Tiles = tiles, Entities = entities, DebugLines = BuildGuardDebugLines()
+            ActiveWorld = ActiveWorld, DetectionPercent = DetectionPercent, SeeingStoneChargePercent = _seeingStoneCharge,
+            CollectedEyes = _collectedEyeIds.Count, IsGameWon = IsGameWon, IsGameOver = IsGameOver,
+            Tiles = tiles, Entities = entities, DebugLines = BuildGuardDebugLines()
         };
     }
 
@@ -91,11 +93,11 @@ public sealed class GameWorldState
         var halfFov = GuardFovRad * 0.5f;
         foreach (var guard in _guards)
         {
-            var leftEnd = LineOfSight.CastVisionRay(_map, guard.Position, guard.RotationRad - halfFov, GuardVisionRange, ActiveWorld);
-            var centerEnd = LineOfSight.CastVisionRay(_map, guard.Position, guard.RotationRad, GuardVisionRange, ActiveWorld);
-            var rightEnd = LineOfSight.CastVisionRay(_map, guard.Position, guard.RotationRad + halfFov, GuardVisionRange, ActiveWorld);
-
-            lines.AddRange([(guard.Position, leftEnd), (guard.Position, centerEnd), (guard.Position, rightEnd), (leftEnd, centerEnd), (centerEnd, rightEnd)]);
+            var (left, center, right) = (
+                LineOfSight.CastVisionRay(_map, guard.Position, guard.RotationRad - halfFov, GuardVisionRange, ActiveWorld),
+                LineOfSight.CastVisionRay(_map, guard.Position, guard.RotationRad, GuardVisionRange, ActiveWorld),
+                LineOfSight.CastVisionRay(_map, guard.Position, guard.RotationRad + halfFov, GuardVisionRange, ActiveWorld));
+            lines.AddRange([(guard.Position, left), (guard.Position, center), (guard.Position, right), (left, center), (center, right)]);
 
             var path = AStarPathfinder.FindPath(_map, guard.Position, PlayerPosition, WorldDimension.OtherWorld);
             for (var i = 0; i < path.Count - 1; i++) lines.Add((path[i], path[i + 1]));
@@ -168,10 +170,7 @@ public sealed class GameWorldState
             if (inProximity || inLos) spotted = true;
 
             guard.Update(deltaTime, _map, PlayerPosition, DetectionPercent);
-            if (guard.State == GuardBehaviorState.AlertChase && (guard.Position - PlayerPosition).Length < 0.65f)
-            {
-                IsGameOver = true;
-            }
+            if (guard.State == GuardBehaviorState.AlertChase && (guard.Position - PlayerPosition).Length < 0.65f) IsGameOver = true;
         }
 
         var prev = DetectionPercent;

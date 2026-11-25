@@ -38,6 +38,7 @@ public sealed class RenderSnapshot
 {
     public WorldDimension ActiveWorld { get; init; } = WorldDimension.RealWorld;
     public float DetectionPercent { get; init; }
+    public float SeeingStoneChargePercent { get; init; }
     public int CollectedEyes { get; init; }
     public bool IsGameWon { get; init; }
     public bool IsGameOver { get; init; }
