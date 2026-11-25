@@ -80,7 +80,7 @@ public static class AStarPathfinder
             .Select(n => (X: target.X + n.Dx, Y: target.Y + n.Dy))
             .Where(n => map.IsWalkable(n.X, n.Y, dimension))
             .OrderBy(n => Heuristic(n, reference))
-            .Cast<(int X, int Y)?>()
+            .Select(n => ((int X, int Y)?)n)
             .FirstOrDefault();
     }
 
