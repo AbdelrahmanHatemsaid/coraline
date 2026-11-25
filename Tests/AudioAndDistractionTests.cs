@@ -168,4 +168,16 @@ public sealed class AudioAndDistractionTests
 
         Assert.Contains("alert", mockAudio.PlayedSounds);
     }
+
+    [Fact]
+    public void NAudioPlayer_RapidPlayAndDispose_DoesNotThrowUnhandledExceptions()
+    {
+        using var player = new NAudioPlayer();
+        player.Play("footsteps");
+        player.Play("distraction");
+        player.Play("alert");
+        player.Dispose();
+        player.Play("footsteps");
+        player.Dispose();
+    }
 }

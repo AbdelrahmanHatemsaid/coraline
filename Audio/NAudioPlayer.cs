@@ -5,8 +5,10 @@ namespace Coraline.Audio;
 
 public sealed class NAudioPlayer : IAudioService, IDisposable
 {
+    private sealed record ActivePlayback(WaveOutEvent Output, AudioFileReader Reader);
+
     private readonly string _audioDirectory;
-    private readonly List<WaveOutEvent> _activePlayers = [];
+    private readonly List<ActivePlayback> _activePlayers = [];
     private readonly object _lock = new();
     private bool _disposed;
 
@@ -17,58 +19,78 @@ public sealed class NAudioPlayer : IAudioService, IDisposable
 
     public void Play(string soundName)
     {
-        if (_disposed) return;
-
         var fileName = soundName.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) ? soundName : $"{soundName}.wav";
         var fullPath = Path.Combine(_audioDirectory, fileName);
         if (!File.Exists(fullPath)) return;
 
+        ActivePlayback? entry = null;
         try
         {
             var reader = new AudioFileReader(fullPath);
             var output = new WaveOutEvent();
+            entry = new ActivePlayback(output, reader);
+
             output.Init(reader);
             output.PlaybackStopped += (_, _) =>
             {
+                bool shouldDispose;
                 lock (_lock)
                 {
-                    _activePlayers.Remove(output);
+                    shouldDispose = _activePlayers.Remove(entry);
                 }
-                output.Dispose();
-                reader.Dispose();
+
+                if (shouldDispose)
+                {
+                    SafeDisposePlayback(entry, stopFirst: false);
+                }
             };
 
             lock (_lock)
             {
-                _activePlayers.Add(output);
+                if (_disposed)
+                {
+                    SafeDisposePlayback(entry, stopFirst: false);
+                    return;
+                }
+                _activePlayers.Add(entry);
             }
+
             output.Play();
         }
         catch
         {
-            // Gracefully ignore audio hardware initialization errors in headless or virtual environments
+            if (entry is not null)
+            {
+                lock (_lock) { _activePlayers.Remove(entry); }
+                SafeDisposePlayback(entry, stopFirst: false);
+            }
         }
     }
 
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
-
+        List<ActivePlayback> toDispose;
         lock (_lock)
         {
-            foreach (var player in _activePlayers)
-            {
-                try
-                {
-                    player.Stop();
-                    player.Dispose();
-                }
-                catch
-                {
-                }
-            }
+            if (_disposed) return;
+            _disposed = true;
+            toDispose = [.. _activePlayers];
             _activePlayers.Clear();
         }
+
+        foreach (var entry in toDispose)
+        {
+            SafeDisposePlayback(entry, stopFirst: true);
+        }
+    }
+
+    private static void SafeDisposePlayback(ActivePlayback entry, bool stopFirst)
+    {
+        if (stopFirst)
+        {
+            try { entry.Output.Stop(); } catch { }
+        }
+        try { entry.Output.Dispose(); } catch { }
+        try { entry.Reader.Dispose(); } catch { }
     }
 }
