@@ -35,7 +35,24 @@ void main()
     vec3 lightDir = normalize(uLightDir);
     float ndotl = max(dot(norm, lightDir), 0.0);
 
-    // Three-step toon shading quantization for 3D primitive architecture
-    float toonBand = ndotl > 0.72 ? 1.0 : (ndotl > 0.30 ? 0.72 : 0.45);
-    FragColor = vec4(uBaseColor.rgb * toonBand, uBaseColor.a);
+    // Four-step cel-shaded toon ramp with cool shadow shift
+    vec3 litRgb;
+    if (ndotl > 0.82)
+    {
+        litRgb = uBaseColor.rgb * 1.08;
+    }
+    else if (ndotl > 0.45)
+    {
+        litRgb = uBaseColor.rgb * 0.86;
+    }
+    else if (ndotl > 0.18)
+    {
+        litRgb = uBaseColor.rgb * 0.64;
+    }
+    else
+    {
+        litRgb = uBaseColor.rgb * vec3(0.42, 0.40, 0.50);
+    }
+
+    FragColor = vec4(litRgb, uBaseColor.a);
 }
