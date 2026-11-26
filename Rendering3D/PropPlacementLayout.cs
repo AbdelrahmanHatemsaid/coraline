@@ -14,7 +14,8 @@ public readonly record struct PropPart(
     Vector3 Scale,
     float RotationYRad,
     PropShape Shape,
-    Vector4 Color
+    Vector4 Color,
+    bool CastOutline = true
 );
 
 public static class PropPlacementLayout
@@ -28,69 +29,93 @@ public static class PropPlacementLayout
 
     public static IReadOnlyList<PropPart> BuildRoomFurniture(WorldDimension world)
     {
-        var isOther = world == WorldDimension.OtherWorld;
-        var wood = isOther ? new Vector4(0.24f, 0.16f, 0.34f, 1f) : new Vector4(0.42f, 0.25f, 0.16f, 1f);
-        var darkWood = isOther ? new Vector4(0.16f, 0.11f, 0.26f, 1f) : new Vector4(0.28f, 0.16f, 0.11f, 1f);
-        var fabric = isOther ? new Vector4(0.36f, 0.14f, 0.36f, 1f) : new Vector4(0.56f, 0.18f, 0.22f, 1f);
-        var brass = isOther ? new Vector4(0.55f, 0.85f, 0.78f, 1f) : new Vector4(0.84f, 0.68f, 0.26f, 1f);
-        var stone = isOther ? new Vector4(0.22f, 0.24f, 0.38f, 1f) : new Vector4(0.58f, 0.56f, 0.52f, 1f);
-
-        return
-        [
-            // Drawing Room: Sofa & round coffee table + candle
-            new(new(4.5f, 0.22f, 2.0f), new(1.8f, 0.36f, 0.75f), 0f, PropShape.Cube, fabric),
-            new(new(4.5f, 0.48f, 1.7f), new(1.8f, 0.42f, 0.22f), 0f, PropShape.Cube, darkWood),
-            new(new(4.5f, 0.24f, 3.6f), new(0.85f, 0.08f, 0.85f), 0f, PropShape.Cylinder, wood),
-            new(new(4.5f, 0.12f, 3.6f), new(0.20f, 0.24f, 0.20f), 0f, PropShape.Cylinder, darkWood),
-            new(new(4.5f, 0.35f, 3.6f), new(0.10f, 0.14f, 0.10f), 0f, PropShape.Cylinder, brass),
-            // Drawing Room: Grandfather clock / tall cabinet
-            new(new(1.5f, 0.65f, 13.4f), new(0.65f, 1.30f, 0.65f), 0f, PropShape.Cube, darkWood),
-            new(new(1.5f, 1.05f, 13.05f), new(0.34f, 0.34f, 0.08f), 0f, PropShape.Cylinder, brass),
-
-            // Kitchen: Countertop, pot, & center dining table
-            new(new(11.5f, 0.40f, 1.45f), new(2.4f, 0.80f, 0.65f), 0f, PropShape.Cube, darkWood),
-            new(new(11.5f, 0.83f, 1.45f), new(2.46f, 0.08f, 0.70f), 0f, PropShape.Cube, stone),
-            new(new(11.0f, 0.98f, 1.45f), new(0.34f, 0.22f, 0.34f), 0f, PropShape.Cylinder, brass),
-            new(new(12.2f, 0.48f, 8.0f), new(1.35f, 0.10f, 0.95f), 0f, PropShape.Cube, wood),
-            new(new(12.2f, 0.24f, 8.0f), new(0.35f, 0.48f, 0.35f), 0f, PropShape.Cylinder, darkWood),
-            new(new(11.2f, 0.20f, 8.0f), new(0.36f, 0.38f, 0.36f), 0f, PropShape.Cylinder, wood),
-            new(new(13.2f, 0.20f, 8.0f), new(0.36f, 0.38f, 0.36f), 0f, PropShape.Cylinder, wood),
-
-            // Bedroom: Gothic bed & wardrobe
-            new(new(20.4f, 0.24f, 13.4f), new(1.70f, 0.42f, 1.10f), 0f, PropShape.Cube, fabric),
-            new(new(21.2f, 0.56f, 13.4f), new(0.20f, 0.85f, 1.15f), 0f, PropShape.Cube, darkWood),
-            new(new(20.85f, 0.49f, 13.4f), new(0.36f, 0.12f, 0.80f), 0f, PropShape.Cube, stone),
-            new(new(17.7f, 0.62f, 1.55f), new(0.95f, 1.24f, 0.65f), 0f, PropShape.Cube, darkWood)
-        ];
+        var list = new List<PropPart>();
+        AddDrawingRoomFurniture(list, world);
+        KitchenAndBedroomProps.AddKitchenFurniture(list, world);
+        KitchenAndBedroomProps.AddBedroomFurniture(list, world);
+        return list;
     }
 
     public static IReadOnlyList<PropPart> BuildSmallDoorArch(Vector2 doorPos, bool unlocked, WorldDimension world)
     {
-        var frameCol = world == WorldDimension.OtherWorld
-            ? new Vector4(0.28f, 0.18f, 0.42f, 1f)
-            : new Vector4(0.36f, 0.22f, 0.14f, 1f);
-        var knobCol = unlocked
-            ? new Vector4(0.20f, 0.98f, 0.65f, 1f)
-            : new Vector4(0.86f, 0.70f, 0.26f, 1f);
+        var isOther = world == WorldDimension.OtherWorld;
+        var stone = isOther ? new Vector4(0.24f, 0.20f, 0.38f, 1f) : new Vector4(0.38f, 0.32f, 0.26f, 1f);
+        var wood = isOther ? new Vector4(0.18f, 0.12f, 0.28f, 1f) : new Vector4(0.28f, 0.16f, 0.10f, 1f);
+        var knob = unlocked ? new Vector4(0.18f, 0.98f, 0.65f, 1f) : new Vector4(0.88f, 0.72f, 0.24f, 1f);
 
         return
         [
-            new(new(doorPos.X, 0.55f, doorPos.Y - 0.46f), new(0.18f, 1.10f, 0.18f), 0f, PropShape.Cube, frameCol),
-            new(new(doorPos.X, 0.55f, doorPos.Y + 0.46f), new(0.18f, 1.10f, 0.18f), 0f, PropShape.Cube, frameCol),
-            new(new(doorPos.X, 1.15f, doorPos.Y), new(0.22f, 0.18f, 1.12f), 0f, PropShape.Cube, frameCol),
-            new(new(doorPos.X + 0.14f, 0.55f, doorPos.Y + 0.22f), new(0.14f, 0.14f, 0.14f), 0f, PropShape.Cylinder, knobCol)
+            new(new(doorPos.X, 0.65f, doorPos.Y - 0.52f), new(0.24f, 1.30f, 0.22f), 0f, PropShape.Cube, stone),
+            new(new(doorPos.X, 0.65f, doorPos.Y + 0.52f), new(0.24f, 1.30f, 0.22f), 0f, PropShape.Cube, stone),
+            new(new(doorPos.X, 1.35f, doorPos.Y), new(0.28f, 0.24f, 1.28f), 0f, PropShape.Cube, stone),
+            new(new(doorPos.X, 1.52f, doorPos.Y), new(0.24f, 0.16f, 0.90f), 0f, PropShape.Cube, wood),
+            new(new(doorPos.X + 0.18f, 0.58f, doorPos.Y + 0.24f), new(0.16f, 0.16f, 0.16f), 0f, PropShape.Cylinder, knob)
         ];
     }
 
     public static IReadOnlyList<PropPart> BuildWebTrap(Vector2 pos)
     {
-        var silk = new Vector4(0.82f, 0.88f, 0.96f, 0.85f);
-        return
-        [
-            new(new(pos.X, 0.025f, pos.Y), new(0.90f, 0.02f, 0.06f), 0.0f, PropShape.Cube, silk),
-            new(new(pos.X, 0.025f, pos.Y), new(0.90f, 0.02f, 0.06f), MathF.PI / 3f, PropShape.Cube, silk),
-            new(new(pos.X, 0.025f, pos.Y), new(0.90f, 0.02f, 0.06f), -MathF.PI / 3f, PropShape.Cube, silk),
-            new(new(pos.X, 0.022f, pos.Y), new(0.38f, 0.015f, 0.38f), 0f, PropShape.Cylinder, new(0.75f, 0.82f, 0.92f, 0.65f))
-        ];
+        var silk = new Vector4(0.84f, 0.90f, 0.98f, 0.90f);
+        var parts = new List<PropPart>();
+        for (var i = 0; i < 4; i++)
+        {
+            parts.Add(new PropPart(new(pos.X, 0.025f, pos.Y), new(1.15f, 0.02f, 0.045f), i * MathF.PI / 4f, PropShape.Cube, silk, CastOutline: false));
+        }
+        parts.Add(new PropPart(new(pos.X, 0.022f, pos.Y), new(0.55f, 0.015f, 0.55f), 0f, PropShape.Cylinder, new(0.78f, 0.85f, 0.95f, 0.7f), CastOutline: false));
+        parts.Add(new PropPart(new(pos.X, 0.028f, pos.Y), new(0.22f, 0.020f, 0.22f), 0f, PropShape.Cylinder, silk, CastOutline: false));
+        return parts;
+    }
+
+    private static void AddDrawingRoomFurniture(List<PropPart> list, WorldDimension world)
+    {
+        var isOther = world == WorldDimension.OtherWorld;
+        var wood = isOther ? new Vector4(0.28f, 0.18f, 0.38f, 1f) : new Vector4(0.46f, 0.27f, 0.17f, 1f);
+        var darkWood = isOther ? new Vector4(0.18f, 0.12f, 0.28f, 1f) : new Vector4(0.30f, 0.17f, 0.11f, 1f);
+        var velvet = isOther ? new Vector4(0.42f, 0.16f, 0.44f, 1f) : new Vector4(0.66f, 0.18f, 0.24f, 1f);
+        var brass = isOther ? new Vector4(0.42f, 0.92f, 0.80f, 1f) : new Vector4(0.92f, 0.74f, 0.26f, 1f);
+        var stone = isOther ? new Vector4(0.24f, 0.24f, 0.40f, 1f) : new Vector4(0.56f, 0.53f, 0.48f, 1f);
+        var ember = isOther ? new Vector4(0.22f, 0.95f, 0.72f, 1f) : new Vector4(1.00f, 0.48f, 0.12f, 1f);
+        var rug = isOther ? new Vector4(0.22f, 0.14f, 0.34f, 1f) : new Vector4(0.48f, 0.16f, 0.20f, 1f);
+
+        // Woven Drawing Room rug
+        list.Add(new(new(4.4f, 0.02f, 3.8f), new(3.3f, 0.03f, 2.7f), 0f, PropShape.Cube, rug, CastOutline: false));
+
+        // Grand Stone Fireplace & Glowing Hearth (top wall of Drawing Room)
+        list.Add(new(new(4.4f, 0.08f, 1.55f), new(2.1f, 0.16f, 0.95f), 0f, PropShape.Cube, stone));
+        list.Add(new(new(3.6f, 0.65f, 1.45f), new(0.42f, 1.15f, 0.68f), 0f, PropShape.Cube, stone));
+        list.Add(new(new(5.2f, 0.65f, 1.45f), new(0.42f, 1.15f, 0.68f), 0f, PropShape.Cube, stone));
+        list.Add(new(new(4.4f, 1.28f, 1.45f), new(2.25f, 0.22f, 0.78f), 0f, PropShape.Cube, darkWood));
+        list.Add(new(new(4.4f, 0.30f, 1.42f), new(0.95f, 0.42f, 0.45f), 0f, PropShape.Cube, ember));
+        list.Add(new(new(3.7f, 1.52f, 1.45f), new(0.14f, 0.28f, 0.14f), 0f, PropShape.Cylinder, brass));
+        list.Add(new(new(5.1f, 1.52f, 1.45f), new(0.14f, 0.28f, 0.14f), 0f, PropShape.Cylinder, brass));
+
+        // Tufted Victorian Sofa facing fireplace + rolled arms + wooden legs
+        list.Add(new(new(4.4f, 0.28f, 4.75f), new(2.2f, 0.32f, 0.85f), 0f, PropShape.Cube, velvet));
+        list.Add(new(new(4.4f, 0.62f, 5.08f), new(2.2f, 0.56f, 0.24f), 0f, PropShape.Cube, darkWood));
+        list.Add(new(new(3.38f, 0.48f, 4.75f), new(0.24f, 0.44f, 0.88f), 0f, PropShape.Cube, velvet));
+        list.Add(new(new(5.42f, 0.48f, 4.75f), new(0.24f, 0.44f, 0.88f), 0f, PropShape.Cube, velvet));
+        list.Add(new(new(3.9f, 0.48f, 4.70f), new(0.75f, 0.14f, 0.58f), 0f, PropShape.Cube, new(velvet.X * 1.15f, velvet.Y * 1.15f, velvet.Z * 1.15f, 1f)));
+        list.Add(new(new(4.9f, 0.48f, 4.70f), new(0.75f, 0.14f, 0.58f), 0f, PropShape.Cube, new(velvet.X * 1.15f, velvet.Y * 1.15f, velvet.Z * 1.15f, 1f)));
+
+        // Carved Coffee Table + open book + brass candle
+        list.Add(new(new(4.4f, 0.38f, 3.25f), new(1.25f, 0.10f, 0.80f), 0f, PropShape.Cube, wood));
+        list.Add(new(new(3.9f, 0.19f, 2.95f), new(0.12f, 0.38f, 0.12f), 0f, PropShape.Cylinder, darkWood));
+        list.Add(new(new(4.9f, 0.19f, 2.95f), new(0.12f, 0.38f, 0.12f), 0f, PropShape.Cylinder, darkWood));
+        list.Add(new(new(3.9f, 0.19f, 3.55f), new(0.12f, 0.38f, 0.12f), 0f, PropShape.Cylinder, darkWood));
+        list.Add(new(new(4.9f, 0.19f, 3.55f), new(0.12f, 0.38f, 0.12f), 0f, PropShape.Cylinder, darkWood));
+        list.Add(new(new(4.25f, 0.48f, 3.25f), new(0.32f, 0.08f, 0.24f), 0.25f, PropShape.Cube, stone));
+        list.Add(new(new(4.65f, 0.56f, 3.25f), new(0.12f, 0.24f, 0.12f), 0f, PropShape.Cylinder, ember));
+
+        // Tall Bookcase filled with colored books (top-right corner of Drawing Room)
+        list.Add(new(new(6.85f, 0.78f, 1.55f), new(1.25f, 1.56f, 0.55f), 0f, PropShape.Cube, darkWood));
+        list.Add(new(new(6.55f, 0.55f, 1.68f), new(0.45f, 0.28f, 0.36f), 0f, PropShape.Cube, velvet));
+        list.Add(new(new(7.10f, 0.55f, 1.68f), new(0.42f, 0.28f, 0.36f), 0f, PropShape.Cube, brass));
+        list.Add(new(new(6.85f, 1.05f, 1.68f), new(0.95f, 0.28f, 0.36f), 0f, PropShape.Cube, new(0.22f, 0.45f, 0.52f, 1f)));
+
+        // Armchair + Grandfather Clock
+        list.Add(new(new(2.25f, 0.30f, 3.35f), new(0.85f, 0.38f, 0.85f), 0.35f, PropShape.Cube, velvet));
+        list.Add(new(new(2.00f, 0.62f, 3.35f), new(0.24f, 0.56f, 0.85f), 0.35f, PropShape.Cube, darkWood));
+        list.Add(new(new(1.85f, 0.80f, 13.45f), new(0.75f, 1.60f, 0.72f), 0f, PropShape.Cube, darkWood));
+        list.Add(new(new(1.85f, 1.25f, 13.06f), new(0.42f, 0.42f, 0.10f), 0f, PropShape.Cylinder, brass));
     }
 }
