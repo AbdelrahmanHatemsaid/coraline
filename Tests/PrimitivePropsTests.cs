@@ -14,7 +14,7 @@ public sealed class PrimitivePropsTests
         var otherProps = PropPlacementLayout.BuildRoomFurniture(WorldDimension.OtherWorld);
 
         Assert.Equal(realProps.Count, otherProps.Count);
-        Assert.True(realProps.Count >= 55, $"Expected rich multi-part furniture, got {realProps.Count}");
+        Assert.True(realProps.Count >= 80, $"Expected rich multi-part furniture, got {realProps.Count}");
         Assert.Contains(realProps, p => p.Position.X < 8f);                 // Drawing Room
         Assert.Contains(realProps, p => p.Position.X is >= 8f and < 16f);  // Kitchen
         Assert.Contains(realProps, p => p.Position.X >= 16f);               // Bedroom
