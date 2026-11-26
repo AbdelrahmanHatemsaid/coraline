@@ -19,12 +19,14 @@ public sealed class CoralineGame : GameWindow
     private readonly ColorDrainPostProcessor _postProcessor = new();
     private readonly QuadHudRenderer _quadHud = new();
     private readonly TacticalCamera3D _camera = new();
+    private LevelEffectsRenderer _effectsRenderer = null!;
     private GameEventBus _eventBus = null!;
     private LevelMap _levelMap = null!;
     private GameWorldState _worldState = null!;
     private RenderSnapshot _currentSnapshot = new();
     private NAudioPlayer _audioPlayer = null!;
     private AudioTriggerSystem _audioTriggerSystem = null!;
+    private float _elapsedTime;
     private bool _useDebugRenderer;
 
     public CoralineGame(GameWindowSettings gws, NativeWindowSettings nws)
@@ -50,8 +52,10 @@ public sealed class CoralineGame : GameWindow
         _postProcessor.Initialize(ClientSize.X, ClientSize.Y);
         _quadHud.Initialize();
 
-        // 3. Initialize EventBus & Load 24x16 3-Room JSON Map
+        // 3. Initialize EventBus, EffectsRenderer (#9), Audio, & Load 24x16 3-Room JSON Map
         _eventBus = new GameEventBus();
+        _effectsRenderer = new LevelEffectsRenderer(_eventBus);
+        _effectsRenderer.Initialize();
         _audioPlayer = new NAudioPlayer();
         _audioTriggerSystem = new AudioTriggerSystem(_eventBus, _audioPlayer);
         var mapPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Maps", "level1_other_house.json");
@@ -89,11 +93,13 @@ public sealed class CoralineGame : GameWindow
         }
 
         var dt = (float)args.Time;
+        _elapsedTime += dt;
 
         // 1. Poll Input -> IInputProvider
         _inputProvider.UpdateState(KeyboardState);
 
         // 2. Step Headless Logic (Stances, Raycast LOS, AI, Dual-World State)
+        _effectsRenderer.Update(dt);
         _audioTriggerSystem.Update(dt);
         _worldState.Step(dt, _inputProvider);
 
@@ -122,8 +128,8 @@ public sealed class CoralineGame : GameWindow
         }
         else
         {
-            _primitiveRenderer.Render(_currentSnapshot, _camera, aspectRatio);
-            _debugRenderer.RenderLinesAndOverlay(_currentSnapshot, view, projection, include2DOverlay: false);
+            _primitiveRenderer.Render(_currentSnapshot, _camera, aspectRatio, _elapsedTime);
+            _effectsRenderer.Render(_currentSnapshot, view, projection);
         }
         _postProcessor.EndSceneAndDraw(_currentSnapshot);
         _quadHud.Render(_currentSnapshot, aspectRatio);
@@ -133,6 +139,7 @@ public sealed class CoralineGame : GameWindow
 
     protected override void OnUnload()
     {
+        _effectsRenderer.Dispose();
         _audioTriggerSystem.Dispose();
         _audioPlayer.Dispose();
         _quadHud.Dispose();

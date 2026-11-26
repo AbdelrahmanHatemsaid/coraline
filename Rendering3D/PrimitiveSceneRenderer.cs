@@ -32,7 +32,7 @@ public sealed class PrimitiveSceneRenderer : IDisposable
         _eyeTex = TextureLoader.Load("ui_ghost_eye.jpg");
     }
 
-    public void Render(RenderSnapshot snapshot, TacticalCamera3D camera, float aspectRatio)
+    public void Render(RenderSnapshot snapshot, TacticalCamera3D camera, float aspectRatio, float elapsedTime = 0f)
     {
         if (_shader is null) return;
 
@@ -43,7 +43,7 @@ public sealed class PrimitiveSceneRenderer : IDisposable
         _shader.SetInt("uMainTex", 0);
 
         DrawTiles(snapshot);
-        DrawEntities(snapshot, camera);
+        DrawEntities(snapshot, camera, elapsedTime);
     }
 
     public void Dispose()
@@ -75,25 +75,21 @@ public sealed class PrimitiveSceneRenderer : IDisposable
 
             if (tile.IsWalkable)
             {
-                var color = tile.DiffersBetweenWorlds
-                    ? new Vector4(0.28f, 0.72f, 0.78f, 1.0f)
-                    : (isOther ? new Vector4(0.14f, 0.16f, 0.28f, 1.0f) : new Vector4(0.26f, 0.25f, 0.23f, 1.0f));
-                DrawMesh(_planeMesh!, Matrix4.CreateTranslation(cx, 0.0f, cz), color);
+                DrawMesh(_planeMesh!, Matrix4.CreateTranslation(cx, 0.0f, cz), GetFloorColor(tile, isOther));
             }
             else
             {
-                var wallHeight = tile.DiffersBetweenWorlds ? 1.15f : 1.55f;
-                var color = tile.DiffersBetweenWorlds
-                    ? new Vector4(0.62f, 0.24f, 0.38f, 1.0f)
-                    : (isOther ? new Vector4(0.30f, 0.22f, 0.46f, 1.0f) : new Vector4(0.45f, 0.39f, 0.32f, 1.0f));
-                var model = Matrix4.CreateScale(0.98f, wallHeight, 0.98f)
-                    * Matrix4.CreateTranslation(cx, wallHeight * 0.5f, cz);
-                DrawMesh(_cubeMesh!, model, color);
+                var wallH = tile.DiffersBetweenWorlds ? 1.15f : 1.55f;
+                var wallCol = GetWallColor(tile, isOther);
+                DrawMesh(_cubeMesh!, Matrix4.CreateScale(0.98f, wallH, 0.98f) * Matrix4.CreateTranslation(cx, wallH * 0.5f, cz), wallCol);
+
+                var capCol = new Vector4(wallCol.X * 0.72f, wallCol.Y * 0.72f, wallCol.Z * 0.78f, 1.0f);
+                DrawMesh(_cubeMesh!, Matrix4.CreateScale(1.02f, 0.12f, 1.02f) * Matrix4.CreateTranslation(cx, wallH + 0.06f, cz), capCol);
             }
         }
     }
 
-    private void DrawEntities(RenderSnapshot snapshot, TacticalCamera3D camera)
+    private void DrawEntities(RenderSnapshot snapshot, TacticalCamera3D camera, float elapsedTime)
     {
         var billboardYaw = MathF.Atan2(camera.Offset.X, camera.Offset.Z);
 
@@ -115,13 +111,57 @@ public sealed class PrimitiveSceneRenderer : IDisposable
                     DrawBillboard(pos, billboardYaw, 1.20f, _doorTex!, Vector4.One, 0.09f);
                     break;
                 case EntityType.GhostEye:
+                    var bob = MathF.Sin(elapsedTime * 3.0f + entity.EntityId) * 0.08f;
                     _shader!.SetBool("uUseTexture", false);
                     _shader.SetFloat("uChromaTolerance", 0.0f);
-                    DrawMesh(_cylinderMesh!, Matrix4.CreateTranslation(pos.X, 0.28f, pos.Z), new Vector4(0.35f, 0.40f, 0.48f, 1.0f));
-                    DrawBillboard(new Vector3(pos.X, 0.56f, pos.Z), billboardYaw, 0.65f, _eyeTex!, Vector4.One, 0.10f);
+                    DrawMesh(_cylinderMesh!, Matrix4.CreateTranslation(pos.X, 0.28f, pos.Z), new Vector4(0.35f, 0.40f, 0.52f, 1.0f));
+                    DrawBillboard(new Vector3(pos.X, 0.62f + bob, pos.Z), billboardYaw, 0.65f, _eyeTex!, Vector4.One, 0.10f);
                     break;
             }
         }
+    }
+
+    private static Vector4 GetFloorColor(TileRenderState tile, bool isOther)
+    {
+        if (tile.DiffersBetweenWorlds)
+        {
+            return new Vector4(0.24f, 0.78f, 0.82f, 1.0f);
+        }
+
+        var checker = (tile.X + tile.Y) % 2 == 0;
+        if (tile.X < 8)
+        {
+            // Drawing Room: warm mahogany floorboards (or eerie violet-wood in OtherWorld)
+            var plank = tile.Y % 2 == 0;
+            return isOther
+                ? (plank ? new Vector4(0.14f, 0.13f, 0.26f, 1f) : new Vector4(0.11f, 0.10f, 0.22f, 1f))
+                : (plank ? new Vector4(0.32f, 0.23f, 0.18f, 1f) : new Vector4(0.27f, 0.19f, 0.15f, 1f));
+        }
+
+        if (tile.X < 16)
+        {
+            // Kitchen: gothic checkerboard tiles
+            return isOther
+                ? (checker ? new Vector4(0.18f, 0.20f, 0.34f, 1f) : new Vector4(0.09f, 0.10f, 0.20f, 1f))
+                : (checker ? new Vector4(0.38f, 0.37f, 0.34f, 1f) : new Vector4(0.20f, 0.20f, 0.22f, 1f));
+        }
+
+        // Bedroom: woven rug center over dark timber
+        var inRug = tile.X is >= 18 and <= 21 && tile.Y is >= 4 and <= 11;
+        if (inRug)
+        {
+            return isOther ? new Vector4(0.26f, 0.15f, 0.36f, 1f) : new Vector4(0.42f, 0.18f, 0.22f, 1f);
+        }
+
+        return isOther
+            ? (checker ? new Vector4(0.13f, 0.14f, 0.25f, 1f) : new Vector4(0.10f, 0.12f, 0.21f, 1f))
+            : (checker ? new Vector4(0.24f, 0.20f, 0.18f, 1f) : new Vector4(0.21f, 0.17f, 0.16f, 1f));
+    }
+
+    private static Vector4 GetWallColor(TileRenderState tile, bool isOther)
+    {
+        if (tile.DiffersBetweenWorlds) return new Vector4(0.62f, 0.24f, 0.38f, 1.0f);
+        return isOther ? new Vector4(0.29f, 0.21f, 0.45f, 1.0f) : new Vector4(0.45f, 0.39f, 0.33f, 1.0f);
     }
 
     private void DrawBillboard(Vector3 position, float yaw, float scale, Texture2D texture, Vector4 tint, float chromaTolerance)
@@ -129,10 +169,7 @@ public sealed class PrimitiveSceneRenderer : IDisposable
         texture.Bind(TextureUnit.Texture0);
         _shader!.SetBool("uUseTexture", true);
         _shader.SetFloat("uChromaTolerance", chromaTolerance);
-        var model = Matrix4.CreateScale(scale)
-            * Matrix4.CreateRotationY(yaw)
-            * Matrix4.CreateTranslation(position);
-        DrawMesh(_billboardMesh!, model, tint);
+        DrawMesh(_billboardMesh!, Matrix4.CreateScale(scale) * Matrix4.CreateRotationY(yaw) * Matrix4.CreateTranslation(position), tint);
     }
 
     private void DrawMesh(GpuMesh mesh, Matrix4 model, Vector4 baseColor)
