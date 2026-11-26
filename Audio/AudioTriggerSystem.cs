@@ -11,6 +11,12 @@ public sealed class AudioTriggerSystem : IDisposable
     {
         _audioService = audioService;
         eventBus.Subscribe<NoiseEmittedEvent>(OnNoiseEmitted);
+        eventBus.Subscribe<WorldShiftedEvent>(OnWorldShifted);
+    }
+
+    private void OnWorldShifted(WorldShiftedEvent e)
+    {
+        _audioService.Play("world_shift");
     }
 
     public void Update(float deltaTime)

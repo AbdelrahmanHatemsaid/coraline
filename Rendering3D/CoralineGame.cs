@@ -16,6 +16,7 @@ public sealed class CoralineGame : GameWindow
     private readonly OpenTkInputProvider _inputProvider = new();
     private readonly DebugRenderer _debugRenderer = new();
     private readonly PrimitiveSceneRenderer _primitiveRenderer = new();
+    private readonly ComicOutlineRenderer _outlineRenderer = new();
     private readonly ColorDrainPostProcessor _postProcessor = new();
     private readonly QuadHudRenderer _quadHud = new();
     private readonly TacticalCamera3D _camera = new();
@@ -46,9 +47,10 @@ public sealed class CoralineGame : GameWindow
         GL.Enable(EnableCap.DepthTest);
         GL.ClearColor(0.06f, 0.07f, 0.10f, 1.0f);
 
-        // 2. Initialize DebugRenderer (#3), PrimitiveSceneRenderer (#5), ColorDrain FBO (#11), & Quad HUD (#19)
+        // 2. Initialize DebugRenderer (#3), PrimitiveSceneRenderer (#5), Outlines (#13), ColorDrain FBO (#11), & Quad HUD (#19)
         _debugRenderer.Initialize();
         _primitiveRenderer.Initialize();
+        _outlineRenderer.Initialize();
         _postProcessor.Initialize(ClientSize.X, ClientSize.Y);
         _quadHud.Initialize();
 
@@ -129,6 +131,7 @@ public sealed class CoralineGame : GameWindow
         else
         {
             _primitiveRenderer.Render(_currentSnapshot, _camera, aspectRatio, _elapsedTime);
+            _outlineRenderer.Render(_currentSnapshot, _camera, aspectRatio);
             _effectsRenderer.Render(_currentSnapshot, view, projection);
         }
         _postProcessor.EndSceneAndDraw(_currentSnapshot);
@@ -144,6 +147,7 @@ public sealed class CoralineGame : GameWindow
         _audioPlayer.Dispose();
         _quadHud.Dispose();
         _postProcessor.Dispose();
+        _outlineRenderer.Dispose();
         _primitiveRenderer.Dispose();
         _debugRenderer.Dispose();
         base.OnUnload();
