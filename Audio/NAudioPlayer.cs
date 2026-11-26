@@ -24,6 +24,7 @@ public sealed class NAudioPlayer : IAudioService, IDisposable
         if (!File.Exists(fullPath)) return;
 
         ActivePlayback? entry = null;
+        var registered = false;
         try
         {
             var reader = new AudioFileReader(fullPath);
@@ -53,6 +54,7 @@ public sealed class NAudioPlayer : IAudioService, IDisposable
                     return;
                 }
                 _activePlayers.Add(entry);
+                registered = true;
             }
 
             output.Play();
@@ -61,8 +63,16 @@ public sealed class NAudioPlayer : IAudioService, IDisposable
         {
             if (entry is not null)
             {
-                lock (_lock) { _activePlayers.Remove(entry); }
-                SafeDisposePlayback(entry, stopFirst: false);
+                bool shouldDispose;
+                lock (_lock)
+                {
+                    shouldDispose = !registered || _activePlayers.Remove(entry);
+                }
+
+                if (shouldDispose)
+                {
+                    SafeDisposePlayback(entry, stopFirst: false);
+                }
             }
         }
     }
