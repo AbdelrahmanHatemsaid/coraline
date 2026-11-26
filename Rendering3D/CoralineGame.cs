@@ -17,6 +17,7 @@ public sealed class CoralineGame : GameWindow
     private readonly DebugRenderer _debugRenderer = new();
     private readonly PrimitiveSceneRenderer _primitiveRenderer = new();
     private readonly PrimitivePropsRenderer _propsRenderer = new();
+    private readonly SeeingStoneXRayRenderer _xrayRenderer = new();
     private readonly ColorDrainPostProcessor _postProcessor = new();
     private readonly QuadHudRenderer _quadHud = new();
     private readonly TacticalCamera3D _camera = new();
@@ -47,10 +48,11 @@ public sealed class CoralineGame : GameWindow
         GL.Enable(EnableCap.DepthTest);
         GL.ClearColor(0.06f, 0.07f, 0.10f, 1.0f);
 
-        // 2. Initialize DebugRenderer (#3), PrimitiveSceneRenderer (#5), Props (#17), ColorDrain FBO (#11), & Quad HUD (#19)
+        // 2. Initialize DebugRenderer (#3), PrimitiveSceneRenderer (#5), X-Ray (#15), Props (#17), ColorDrain FBO (#11), & Quad HUD (#19)
         _debugRenderer.Initialize();
         _primitiveRenderer.Initialize();
         _propsRenderer.Initialize();
+        _xrayRenderer.Initialize();
         _postProcessor.Initialize(ClientSize.X, ClientSize.Y);
         _quadHud.Initialize();
 
@@ -133,6 +135,7 @@ public sealed class CoralineGame : GameWindow
             _primitiveRenderer.Render(_currentSnapshot, _camera, aspectRatio, _elapsedTime);
             _propsRenderer.Render(_currentSnapshot, _camera, aspectRatio);
             _effectsRenderer.Render(_currentSnapshot, view, projection);
+            _xrayRenderer.Render(_currentSnapshot, _camera, aspectRatio, _elapsedTime);
         }
         _postProcessor.EndSceneAndDraw(_currentSnapshot);
         _quadHud.Render(_currentSnapshot, aspectRatio);
@@ -148,6 +151,7 @@ public sealed class CoralineGame : GameWindow
         _quadHud.Dispose();
         _postProcessor.Dispose();
         _propsRenderer.Dispose();
+        _xrayRenderer.Dispose();
         _primitiveRenderer.Dispose();
         _debugRenderer.Dispose();
         base.OnUnload();
